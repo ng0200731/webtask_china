@@ -507,6 +507,10 @@
                 <span class="label-short">R</span>
                 <span class="label-full">Receive Mail</span>
             </button>
+            <button class="menu-button" onclick="showSend()">
+                <span class="label-short">S</span>
+                <span class="label-full">Send</span>
+            </button>
             <button class="menu-button" onclick="showTask()">
                 <span class="label-short">T</span>
                 <span class="label-full">Task</span>
@@ -522,6 +526,13 @@
                 <div class="version-info">Version: <span id="version">v{{ version }}</span></div>
             </div>
             <div id="receive-mail-content">
+                <button class="form-button" onclick="fetchGmailEmails()" style="margin-bottom: 20px; margin-right: 10px;">Fetch Gmail</button>
+                <button class="form-button" onclick="fetch163Emails()" style="margin-bottom: 20px; margin-right: 10px;">Fetch 163.com</button>
+                <button class="form-button" onclick="fetchQQEmails()" style="margin-bottom: 20px;">Fetch QQ Email</button>
+                <div id="error-message" class="message hidden"></div>
+                <div id="email-list" class="email-list"></div>
+            </div>
+            <div id="send-mail-content" class="hidden">
                 <div class="email-compose">
                     <h3>Send Email (SMTP)</h3>
                     <div class="compose-grid">
@@ -558,11 +569,6 @@
                         <div id="send-email-status" class="message info hidden"></div>
                     </div>
                 </div>
-                <button class="form-button" onclick="fetchGmailEmails()" style="margin-bottom: 20px; margin-right: 10px;">Fetch Gmail</button>
-                <button class="form-button" onclick="fetch163Emails()" style="margin-bottom: 20px; margin-right: 10px;">Fetch 163.com</button>
-                <button class="form-button" onclick="fetchQQEmails()" style="margin-bottom: 20px;">Fetch QQ Email</button>
-                <div id="error-message" class="message hidden"></div>
-                <div id="email-list" class="email-list"></div>
             </div>
             <div id="task-content" class="hidden">
                 <p style="font-family: Arial, sans-serif; font-size: 14px; color: #000000;">Task feature is pending.</p>
@@ -1102,6 +1108,7 @@
 
         function showReceiveMail() {
             document.getElementById('receive-mail-content').classList.remove('hidden');
+            document.getElementById('send-mail-content').classList.add('hidden');
             document.getElementById('task-content').classList.add('hidden');
             document.getElementById('settings-content').classList.add('hidden');
             document.getElementById('content-title').textContent = 'Receive Mail';
@@ -1109,8 +1116,19 @@
             event.target.classList.add('active');
         }
 
+        function showSend() {
+            document.getElementById('receive-mail-content').classList.add('hidden');
+            document.getElementById('send-mail-content').classList.remove('hidden');
+            document.getElementById('task-content').classList.add('hidden');
+            document.getElementById('settings-content').classList.add('hidden');
+            document.getElementById('content-title').textContent = 'Send Email';
+            document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
         function showTask() {
             document.getElementById('receive-mail-content').classList.add('hidden');
+            document.getElementById('send-mail-content').classList.add('hidden');
             document.getElementById('task-content').classList.remove('hidden');
             document.getElementById('settings-content').classList.add('hidden');
             document.getElementById('content-title').textContent = 'Task';
@@ -1122,6 +1140,7 @@
             document.getElementById('receive-mail-content').classList.add('hidden');
             document.getElementById('task-content').classList.add('hidden');
             document.getElementById('settings-content').classList.remove('hidden');
+            document.getElementById('send-mail-content').classList.add('hidden');
             document.getElementById('content-title').textContent = 'Settings';
             document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');

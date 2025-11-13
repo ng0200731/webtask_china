@@ -9,7 +9,7 @@ import smtplib
 import re
 
 app = Flask(__name__)
-app.config['VERSION'] = '1.0.9'
+app.config['VERSION'] = '1.0.10'
 
 # Default email configurations (can be overridden via settings)
 GMAIL_CONFIG = {
