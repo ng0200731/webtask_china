@@ -100,14 +100,36 @@
 
         .email-item {
             border: 1px solid #000000;
-            padding: 15px;
             background-color: #ffffff;
             cursor: pointer;
             transition: background-color 0.2s;
+            display: flex;
+            align-items: stretch;
         }
 
         .email-item:hover {
             background-color: #f0f0f0;
+        }
+
+        .email-content {
+            flex: 1 1 calc(100% - 80px);
+            padding: 15px;
+        }
+
+        .email-actions {
+            flex: 0 0 80px;
+            border-left: 1px solid #000000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            background-color: #ffffff;
+        }
+
+        .email-action-button {
+            width: 100%;
+            padding: 8px;
+            font-size: 12px;
         }
 
         .email-header {
@@ -452,6 +474,24 @@
             background-color: #ffffff;
         }
 
+        .task-modal-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 100%;
+        }
+
+        .task-modal-body textarea {
+            flex: 1;
+            width: 100%;
+            border: 1px solid #000000;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            background-color: #ffffff;
+        }
+
         .email-compose {
             border: 1px solid #000000;
             padding: 20px;
@@ -784,6 +824,37 @@
         </div>
     </div>
 
+    <div id="task-modal" class="modal hidden" onclick="closeTaskModal()" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
+        <div class="modal-dialog" onclick="event.stopPropagation();">
+            <div class="modal-header">
+                <div class="modal-title" id="task-modal-title">Create Task</div>
+                <button class="modal-close" onclick="closeTaskModal()">Close</button>
+            </div>
+            <div class="task-modal-body">
+                <div class="form-group">
+                    <label for="task-customer">Selected Customer</label>
+                    <input type="text" id="task-customer" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="task-email">Email</label>
+                    <input type="text" id="task-email" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="task-catalogue">Catalogue</label>
+                    <select id="task-catalogue">
+                        <option value="search">Search Material</option>
+                        <option value="quotation">Quotation</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
+                    <label for="task-notes">Template</label>
+                    <textarea id="task-notes" placeholder="Enter task details..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const VERSION = '{{ version }}';
         document.getElementById('version').textContent = 'v' + VERSION;
@@ -791,6 +862,11 @@
         const emailModalSubject = document.getElementById('email-modal-subject');
         const emailModalMeta = document.getElementById('email-modal-meta');
         const emailModalFrame = document.getElementById('email-modal-frame');
+        const taskModal = document.getElementById('task-modal');
+        const taskCustomerInput = document.getElementById('task-customer');
+        const taskEmailInput = document.getElementById('task-email');
+        const taskCatalogueSelect = document.getElementById('task-catalogue');
+        const taskNotesTextarea = document.getElementById('task-notes');
         let currentEmails = [];
         let currentProvider = null;
         const PROVIDER_LABELS = {
@@ -1241,6 +1317,9 @@
                 if (evt.key === 'Escape' && !emailModal.classList.contains('hidden')) {
                     closeEmailModal();
                 }
+                if (evt.key === 'Escape' && !taskModal.classList.contains('hidden')) {
+                    closeTaskModal();
+                }
             });
         };
 
@@ -1599,15 +1678,20 @@
 
             emailList.innerHTML = currentEmails.map((email, index) => `
                 <div class="email-item" data-index="${index}">
-                    <div class="email-header">
-                        <div class="email-subject">
-                            ${escapeHtml(email.subject || 'No Subject')}
-                            ${email.sequence ? `<span class="email-sequence-inline">${escapeHtml(email.sequence)}</span>` : ''}
+                    <div class="email-content">
+                        <div class="email-header">
+                            <div class="email-subject">
+                                ${escapeHtml(email.subject || 'No Subject')}
+                                ${email.sequence ? `<span class="email-sequence-inline">${escapeHtml(email.sequence)}</span>` : ''}
+                            </div>
+                            <div class="email-date">${escapeHtml(email.date || '')}</div>
                         </div>
-                        <div class="email-date">${escapeHtml(email.date || '')}</div>
+                        <div class="email-from">From: ${escapeHtml(email.from || '')}</div>
+                        <div class="email-preview">${escapeHtml(email.preview || '')}</div>
                     </div>
-                    <div class="email-from">From: ${escapeHtml(email.from || '')}</div>
-                    <div class="email-preview">${escapeHtml(email.preview || '')}</div>
+                    <div class="email-actions">
+                        <button class="form-button email-action-button" data-index="${index}">Task</button>
+                    </div>
                 </div>
             `).join('');
 
@@ -1615,6 +1699,14 @@
                 item.addEventListener('click', () => {
                     const index = parseInt(item.getAttribute('data-index'), 10);
                     openEmailModal(index);
+                });
+            });
+
+            document.querySelectorAll('.email-action-button').forEach(button => {
+                button.addEventListener('click', (evt) => {
+                    evt.stopPropagation();
+                    const index = parseInt(button.getAttribute('data-index'), 10);
+                    openTaskModal(index);
                 });
             });
         }
@@ -1648,6 +1740,27 @@
         function closeEmailModal() {
             emailModal.classList.add('hidden');
             emailModalFrame.srcdoc = '';
+        }
+
+        function openTaskModal(index) {
+            if (Number.isNaN(index)) {
+                return;
+            }
+            const email = currentEmails[index];
+            if (!email) {
+                return;
+            }
+
+            taskCustomerInput.value = email.from || '';
+            taskEmailInput.value = extractEmailAddress(email.from || '');
+            taskCatalogueSelect.value = 'search';
+            taskNotesTextarea.value = '';
+
+            taskModal.classList.remove('hidden');
+        }
+
+        function closeTaskModal() {
+            taskModal.classList.add('hidden');
         }
 
         function escapeHtml(text) {
