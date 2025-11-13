@@ -8,9 +8,12 @@ from typing import Optional
 import ssl
 import smtplib
 import re
+import os
+from pathlib import Path
+import sqlite3
 
 app = Flask(__name__)
-app.config['VERSION'] = '1.0.17'
+app.config['VERSION'] = '1.0.24'
 
 # Default email configurations (can be overridden via settings)
 GMAIL_CONFIG = {
@@ -65,6 +68,156 @@ SMTP_BACKUP_CONFIG = {
 }
 
 DEFAULT_SMTP_CONFIGS = [SMTP_PRIMARY_CONFIG, SMTP_BACKUP_CONFIG]
+CUSTOMER_DB_PATH = Path(__file__).resolve().parent / 'mailtask.db'
+
+
+def get_db_connection():
+    connection = sqlite3.connect(str(CUSTOMER_DB_PATH))
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def initialize_database():
+    connection = None
+    cursor = None
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS customers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email_suffix TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS emails (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                email_uid TEXT NOT NULL,
+                subject TEXT,
+                from_addr TEXT,
+                to_addr TEXT,
+                date TEXT,
+                preview TEXT,
+                plain_body TEXT,
+                html_body TEXT,
+                sequence TEXT,
+                fetched_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(provider, email_uid)
+            )
+        """)
+        connection.commit()
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+def insert_customer(name: str, email_suffix: str) -> int:
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute(
+        "INSERT INTO customers (name, email_suffix) VALUES (?, ?)",
+        (name, email_suffix)
+    )
+    connection.commit()
+    customer_id = cursor.lastrowid
+    cursor.close()
+    connection.close()
+    return customer_id
+
+
+def fetch_customers():
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("""
+        SELECT id, name, email_suffix, created_at
+        FROM customers
+        ORDER BY datetime(created_at) DESC
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    connection.close()
+
+    customers = []
+    for row in rows:
+        created_at = row['created_at']
+        if created_at:
+            try:
+                created_at_iso = datetime.fromisoformat(created_at.replace(' ', 'T'))
+                created_at = created_at_iso.isoformat()
+            except ValueError:
+                pass
+
+        customers.append({
+            'id': row['id'],
+            'name': row['name'],
+            'email_suffix': row['email_suffix'],
+            'created_at': created_at
+        })
+    return customers
+
+
+def save_emails(provider: str, emails: list[dict]):
+    if not emails:
+        return
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    now_iso = datetime.utcnow().isoformat()
+    rows = []
+    for email in emails:
+        email_uid = str(email.get('id') or email.get('email_uid') or '')
+        if not email_uid:
+            continue
+        rows.append((
+            provider,
+            email_uid,
+            email.get('subject'),
+            email.get('from'),
+            email.get('to'),
+            email.get('date'),
+            email.get('preview'),
+            email.get('plain_body'),
+            email.get('html_body'),
+            email.get('sequence'),
+            now_iso
+        ))
+    if not rows:
+        cursor.close()
+        connection.close()
+        return
+
+    cursor.executemany("""
+        INSERT INTO emails (
+            provider,
+            email_uid,
+            subject,
+            from_addr,
+            to_addr,
+            date,
+            preview,
+            plain_body,
+            html_body,
+            sequence,
+            fetched_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(provider, email_uid) DO UPDATE SET
+            subject = excluded.subject,
+            from_addr = excluded.from_addr,
+            to_addr = excluded.to_addr,
+            date = excluded.date,
+            preview = excluded.preview,
+            plain_body = excluded.plain_body,
+            html_body = excluded.html_body,
+            sequence = excluded.sequence,
+            fetched_at = excluded.fetched_at
+    """, rows)
+    connection.commit()
+    cursor.close()
+    connection.close()
 
 
 def decode_mime_words(s):
@@ -332,6 +485,10 @@ def fetch_gmail():
         config['use_tls'],
         limit
     )
+    try:
+        save_emails('gmail', result.get('emails', []))
+    except Exception as exc:
+        print(f"Error saving Gmail emails: {exc}")
     return jsonify(result)
 
 
@@ -355,6 +512,10 @@ def fetch_qq():
         data.get('use_tls', QQ_CONFIG.get('use_tls', False)),
         limit
     )
+    try:
+        save_emails('qq', result.get('emails', []))
+    except Exception as exc:
+        print(f"Error saving QQ emails: {exc}")
     return jsonify(result)
 
 
@@ -383,6 +544,10 @@ def fetch_163():
         config['use_tls'],
         limit
     )
+    try:
+        save_emails('163', result.get('emails', []))
+    except Exception as exc:
+        print(f"Error saving 163 emails: {exc}")
     return jsonify(result)
 
 
@@ -426,10 +591,82 @@ def send_email():
     }), 500
 
 
+@app.route('/api/customers', methods=['GET', 'POST'])
+def customers_endpoint():
+    if request.method == 'GET':
+        try:
+            customers = fetch_customers()
+            return jsonify({'customers': customers})
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+
+    data = request.json or {}
+    name = (data.get('name') or '').strip()
+    suffix = (data.get('email_suffix') or '').strip()
+
+    if not name:
+        return jsonify({'error': 'Customer name is required'}), 400
+    if not suffix:
+        return jsonify({'error': 'Email suffix is required'}), 400
+    if '@' in suffix:
+        return jsonify({'error': 'Do not include "@" in the email suffix'}), 400
+    if not re.match(r'^[a-zA-Z0-9._-]+\.[a-zA-Z]{2,}$', suffix):
+        return jsonify({'error': 'Invalid email suffix format'}), 400
+
+    normalized_suffix = '@' + suffix
+
+    try:
+        customer_id = insert_customer(name, normalized_suffix)
+        return jsonify({'id': customer_id, 'name': name, 'email_suffix': normalized_suffix}), 201
+    except Exception as exc:
+        return jsonify({'error': f'Database error: {str(exc)}'}), 500
+
+
+@app.route('/api/emails', methods=['GET'])
+def get_saved_emails():
+    provider = (request.args.get('provider') or '').strip().lower()
+    if not provider:
+        return jsonify({'error': 'Provider query parameter is required'}), 400
+
+    today_iso = datetime.now().date().isoformat()
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("""
+        SELECT provider, email_uid, subject, from_addr, to_addr, date, preview, plain_body, html_body, sequence, fetched_at
+        FROM emails
+        WHERE provider = ?
+          AND date(datetime(fetched_at)) = ?
+        ORDER BY datetime(date) DESC, datetime(fetched_at) DESC
+    """, (provider, today_iso))
+    rows = cursor.fetchall()
+    cursor.close()
+    connection.close()
+
+    emails = []
+    for row in rows:
+        emails.append({
+            'id': row[1],
+            'subject': row[2],
+            'from': row[3],
+            'to': row[4],
+            'date': row[5],
+            'preview': row[6],
+            'plain_body': row[7],
+            'html_body': row[8],
+            'sequence': row[9],
+            'fetched_at': row[10]
+        })
+
+    return jsonify({'provider': provider, 'emails': emails})
+
+
 @app.route('/api/version', methods=['GET'])
 def get_version():
     """Get application version"""
     return jsonify({'version': app.config['VERSION']})
+
+
+initialize_database()
 
 
 if __name__ == '__main__':

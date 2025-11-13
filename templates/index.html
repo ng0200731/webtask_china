@@ -544,6 +544,25 @@
             margin-top: 15px;
             flex-wrap: wrap;
         }
+
+        .customer-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .customer-table th,
+        .customer-table td {
+            border: 1px solid #000000;
+            padding: 10px;
+            text-align: left;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+        }
+
+        .customer-table th {
+            background-color: #f0f0f0;
+        }
     </style>
 </head>
 <body>
@@ -556,6 +575,10 @@
             <button class="menu-button" onclick="showSend()">
                 <span class="label-short">S</span>
                 <span class="label-full">Send</span>
+            </button>
+            <button class="menu-button" onclick="showCreateCustomer()">
+                <span class="label-short">C</span>
+                <span class="label-full">Create Customer</span>
             </button>
             <button class="menu-button" onclick="showTask()">
                 <span class="label-short">T</span>
@@ -577,6 +600,38 @@
                 <button class="form-button" onclick="fetchQQEmails()" style="margin-bottom: 20px;">Fetch QQ Email</button>
                 <div id="error-message" class="message hidden"></div>
                 <div id="email-list" class="email-list"></div>
+            </div>
+            <div id="create-customer-content" class="hidden">
+                <div class="settings-section">
+                    <h3 style="font-family: Arial, sans-serif; font-size: 18px; color: #000000; margin-bottom: 15px; border-bottom: 1px solid #000000; padding-bottom: 10px;">Create Customer</h3>
+                    <div class="form-group">
+                        <label for="customer-name">Customer Name</label>
+                        <input type="text" id="customer-name" placeholder="Enter customer name">
+                    </div>
+                    <div class="form-group">
+                        <label for="customer-email-suffix">Email Suffix (e.g. @example.com)</label>
+                        <input type="text" id="customer-email-suffix" placeholder="@example.com">
+                    </div>
+                    <div class="compose-actions">
+                        <button class="form-button" onclick="saveCustomer()">Save Customer</button>
+                        <div id="customer-status" class="message info hidden"></div>
+                    </div>
+                </div>
+                <div id="customer-list-section" class="settings-section hidden">
+                    <h3 style="font-family: Arial, sans-serif; font-size: 18px; color: #000000; margin-bottom: 15px; border-bottom: 1px solid #000000; padding-bottom: 10px;">Customers</h3>
+                    <table class="customer-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40%;">Name</th>
+                                <th style="width: 40%;">Email Suffix</th>
+                                <th style="width: 20%;">Created At</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customer-table-body">
+                        </tbody>
+                    </table>
+                    <div id="customer-empty" class="message info hidden">No customers yet. Add one above.</div>
+                </div>
             </div>
             <div id="send-mail-content" class="hidden">
                 <div class="email-compose">
@@ -867,8 +922,14 @@
         const taskEmailInput = document.getElementById('task-email');
         const taskCatalogueSelect = document.getElementById('task-catalogue');
         const taskNotesTextarea = document.getElementById('task-notes');
+        const customerStatusDiv = document.getElementById('customer-status');
+        const customerSuffixInput = document.getElementById('customer-email-suffix');
+        const customerListSection = document.getElementById('customer-list-section');
+        const customerTableBody = document.getElementById('customer-table-body');
+        const customerEmptyMessage = document.getElementById('customer-empty');
         let currentEmails = [];
         let currentProvider = null;
+        let customerCache = [];
         const PROVIDER_LABELS = {
             gmail: 'Gmail',
             qq: 'QQ',
@@ -971,7 +1032,30 @@
             return false;
         }
 
-        function loadCachedEmailsOnStartup() {
+        function findCustomerByEmail(rawFrom) {
+            if (!rawFrom) return null;
+            const address = extractEmailAddress(rawFrom);
+            if (!address || !address.includes('@')) return null;
+            const suffix = '@' + address.split('@')[1].toLowerCase();
+            return customerCache.find(customer => (customer.email_suffix || '').toLowerCase() === suffix) || null;
+        }
+
+        function fetchStoredEmails(provider) {
+            if (!provider) {
+                return Promise.resolve([]);
+            }
+            return fetch(`/api/emails?provider=${encodeURIComponent(provider)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    const emails = (data.emails || []).map(item => ensureEmailSequence({ ...item }));
+                    return emails;
+                });
+        }
+
+        async function loadCachedEmailsOnStartup() {
             const emailList = document.getElementById('email-list');
             const candidates = [];
             const lastProvider = localStorage.getItem('lastEmailProvider');
@@ -985,6 +1069,18 @@
             });
 
             for (const provider of candidates) {
+                try {
+                    const stored = await fetchStoredEmails(provider);
+                    if (stored.length > 0) {
+                        cacheEmails(provider, stored);
+                        displayEmails(stored, { provider, cached: false });
+                        currentProvider = provider;
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Failed to load stored emails:', error);
+                }
+
                 if (renderCachedEmailsFor(provider)) {
                     currentProvider = provider;
                     return;
@@ -1045,8 +1141,8 @@
                         port: 465,
                         username: '19902475292@163.com',
                         password: 'JDy8MigeNmsESZRa',
-                        use_ssl: true,
-                        use_tls: false
+                    use_ssl: true,
+                    use_tls: false
                     }
                 }
             };
@@ -1265,10 +1361,10 @@
                     backup: {
                         server: 'smtp.163.com',
                         port: 465,
-                        username: '',
-                        password: '',
-                        use_ssl: true,
-                        use_tls: false
+                    username: '',
+                    password: '',
+                    use_ssl: true,
+                    use_tls: false
                     }
                 }
             };
@@ -1305,14 +1401,15 @@
         }
 
         // Load settings on page load
-        window.onload = function() {
+        window.onload = async function() {
             initializeProfile1();
             if (!localStorage.getItem('selectedProfile')) {
                 setCurrentProfile('profile1');
             }
             showProfileList();
             updateComposeDefaults();
-            loadCachedEmailsOnStartup();
+            await loadCustomers(false);
+            await loadCachedEmailsOnStartup();
             document.addEventListener('keydown', (evt) => {
                 if (evt.key === 'Escape' && !emailModal.classList.contains('hidden')) {
                     closeEmailModal();
@@ -1321,6 +1418,15 @@
                     closeTaskModal();
                 }
             });
+
+            if (customerSuffixInput) {
+                customerSuffixInput.addEventListener('input', () => {
+                    if (customerSuffixInput.value.includes('@')) {
+                        customerSuffixInput.value = customerSuffixInput.value.replace(/@/g, '');
+                        showCustomerStatus('Removed "@". Please enter only the domain, e.g. example.com.', true);
+                    }
+                });
+            }
         };
 
         function showReceiveMail() {
@@ -1331,7 +1437,7 @@
             document.getElementById('content-title').textContent = 'Receive Mail';
             document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
             if (event && event.target) {
-                event.target.classList.add('active');
+            event.target.classList.add('active');
             }
             const emailList = document.getElementById('email-list');
             if (currentProvider && emailList) {
@@ -1352,15 +1458,30 @@
             }
         }
 
+        function showCreateCustomer() {
+            document.getElementById('receive-mail-content').classList.add('hidden');
+            document.getElementById('send-mail-content').classList.add('hidden');
+            document.getElementById('create-customer-content').classList.remove('hidden');
+            document.getElementById('task-content').classList.add('hidden');
+            document.getElementById('settings-content').classList.add('hidden');
+            document.getElementById('content-title').textContent = 'Create Customer';
+            document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+            loadCustomers(true);
+        }
+
         function showTask() {
             document.getElementById('receive-mail-content').classList.add('hidden');
             document.getElementById('send-mail-content').classList.add('hidden');
+            document.getElementById('create-customer-content').classList.add('hidden');
             document.getElementById('task-content').classList.remove('hidden');
             document.getElementById('settings-content').classList.add('hidden');
             document.getElementById('content-title').textContent = 'Task';
             document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
             if (event && event.target) {
-                event.target.classList.add('active');
+            event.target.classList.add('active');
             }
         }
 
@@ -1369,10 +1490,11 @@
             document.getElementById('task-content').classList.add('hidden');
             document.getElementById('settings-content').classList.remove('hidden');
             document.getElementById('send-mail-content').classList.add('hidden');
+            document.getElementById('create-customer-content').classList.add('hidden');
             document.getElementById('content-title').textContent = 'Settings';
             document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
             if (event && event.target) {
-                event.target.classList.add('active');
+            event.target.classList.add('active');
             }
             showProfileList();
         }
@@ -1385,7 +1507,7 @@
             errorDiv.className = `message ${isError ? 'error' : 'success'}`;
             errorDiv.classList.remove('hidden');
             if (timeoutMs > 0) {
-                setTimeout(() => {
+            setTimeout(() => {
                     errorDiv.classList.add('hidden');
                 }, timeoutMs);
             }
@@ -1423,7 +1545,7 @@
             if (cached && Array.isArray(cached)) {
                 displayEmails(cached, { provider: 'gmail', cached: true });
             }
-
+            
             const profile = getCurrentProfile();
             const gmail = profile.gmail || {};
             const requestData = {
@@ -1675,18 +1797,18 @@
                 emailList.innerHTML = '<div class="loading">No emails found for today</div>';
                 return;
             }
-
+            
             emailList.innerHTML = currentEmails.map((email, index) => `
                 <div class="email-item" data-index="${index}">
                     <div class="email-content">
-                        <div class="email-header">
+                    <div class="email-header">
                             <div class="email-subject">
                                 ${escapeHtml(email.subject || 'No Subject')}
                                 ${email.sequence ? `<span class="email-sequence-inline">${escapeHtml(email.sequence)}</span>` : ''}
                             </div>
-                            <div class="email-date">${escapeHtml(email.date || '')}</div>
-                        </div>
-                        <div class="email-from">From: ${escapeHtml(email.from || '')}</div>
+                        <div class="email-date">${escapeHtml(email.date || '')}</div>
+                    </div>
+                    <div class="email-from">From: ${escapeHtml(email.from || '')}</div>
                         <div class="email-preview">${escapeHtml(email.preview || '')}</div>
                     </div>
                     <div class="email-actions">
@@ -1751,7 +1873,20 @@
                 return;
             }
 
-            taskCustomerInput.value = email.from || '';
+            const setCustomerField = () => {
+                const match = findCustomerByEmail(email.from || '');
+                if (match) {
+                    taskCustomerInput.value = match.name || match.email_suffix || '';
+                } else {
+                    taskCustomerInput.value = 'Not in customer list';
+                }
+            };
+
+            setCustomerField();
+            if (!customerCache || customerCache.length === 0) {
+                loadCustomers(false).then(() => setCustomerField()).catch(() => {});
+            }
+
             taskEmailInput.value = extractEmailAddress(email.from || '');
             taskCatalogueSelect.value = 'search';
             taskNotesTextarea.value = '';
@@ -1761,6 +1896,116 @@
 
         function closeTaskModal() {
             taskModal.classList.add('hidden');
+        }
+
+        function saveCustomer() {
+            const nameInput = document.getElementById('customer-name');
+            const suffixInput = document.getElementById('customer-email-suffix');
+            const name = (nameInput.value || '').trim();
+            const suffix = (suffixInput.value || '').trim();
+
+            if (!name) {
+                showCustomerStatus('Customer name is required.', true);
+                return;
+            }
+            if (!suffix) {
+                showCustomerStatus('Please enter an email suffix (e.g. example.com).', true);
+                return;
+            }
+            if (suffix.includes('@')) {
+                showCustomerStatus('Do not include "@" in the email suffix. Enter only the domain, e.g. example.com.', true);
+                return;
+            }
+            if (!/^[a-zA-Z0-9._-]+\.[a-zA-Z]{2,}$/.test(suffix)) {
+                showCustomerStatus('Please enter a valid email suffix (e.g. example.com).', true);
+                return;
+            }
+
+            showCustomerStatus('Saving customer...', false, 'info');
+
+            fetch('/api/customers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name,
+                    email_suffix: suffix
+                })
+            })
+                .then(async response => {
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to save customer');
+                    }
+                    nameInput.value = '';
+                    suffixInput.value = '';
+                    showCustomerStatus('Customer saved.', false);
+                    loadCustomers(false);
+                })
+                .catch(error => {
+                    showCustomerStatus(`Error: ${error.message}`, true);
+                });
+        }
+
+        function showCustomerStatus(message, isError = false, statusType = 'auto') {
+            if (!customerStatusDiv) return;
+            let messageClass = 'info';
+            if (statusType === 'auto') {
+                messageClass = isError ? 'error' : 'success';
+            } else {
+                messageClass = statusType;
+            }
+            customerStatusDiv.textContent = message;
+            customerStatusDiv.className = `message ${messageClass}`;
+            customerStatusDiv.classList.remove('hidden');
+            setTimeout(() => {
+                customerStatusDiv.classList.add('hidden');
+            }, 3000);
+        }
+
+        function renderCustomers(customers) {
+            if (!customerListSection || !customerTableBody || !customerEmptyMessage) {
+                return;
+            }
+            customerCache = customers;
+            customerTableBody.innerHTML = '';
+            if (!customers || customers.length === 0) {
+                customerEmptyMessage.classList.remove('hidden');
+                customerListSection.classList.remove('hidden');
+                return;
+            }
+            customerEmptyMessage.classList.add('hidden');
+            const rows = customers.map(customer => `
+                <tr>
+                    <td>${escapeHtml(customer.name || '')}</td>
+                    <td>${escapeHtml(customer.email_suffix || '')}</td>
+                    <td>${escapeHtml(customer.created_at ? new Date(customer.created_at).toLocaleString() : '')}</td>
+                </tr>
+            `).join('');
+            customerTableBody.innerHTML = rows;
+            customerListSection.classList.remove('hidden');
+        }
+
+        function loadCustomers(showStatus = false) {
+            if (!customerListSection) return Promise.resolve([]);
+            if (showStatus) {
+                showCustomerStatus('Loading customers...', false, 'info');
+            }
+            return fetch('/api/customers')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    renderCustomers(data.customers || []);
+                    return customerCache;
+                })
+                .catch(error => {
+                    showCustomerStatus(`Error: ${error.message}`, true);
+                    customerCache = [];
+                    return [];
+                });
         }
 
         function escapeHtml(text) {
