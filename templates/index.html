@@ -332,6 +332,24 @@
             color: #000000;
         }
 
+        .message {
+            margin-top: 10px;
+            padding: 12px;
+            border: 1px solid #000000;
+            background-color: #f5f5f5;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+        }
+        .message.error {
+            background-color: #f5dada;
+        }
+        .message.success {
+            background-color: #d8f5d8;
+        }
+        .message.info {
+            background-color: #e8e8e8;
+        }
+
         /* Collapsed vs expanded labels */
         .label-short {
             font-weight: bold;
@@ -350,6 +368,135 @@
         }
         .left-menu:hover .menu-button {
             justify-content: flex-start;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.4);
+            padding: 40px;
+            z-index: 1000;
+        }
+
+        .modal.hidden {
+            display: none;
+        }
+
+        .modal-dialog {
+            width: 80vw;
+            max-width: 1000px;
+            height: 80vh;
+            background-color: #ffffff;
+            border: 2px solid #000000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 2px solid #000000;
+        }
+
+        .modal-title {
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            color: #000000;
+        }
+
+        .modal-meta {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            color: #000000;
+            margin-top: 5px;
+            white-space: pre-line;
+        }
+
+        .modal-close {
+            padding: 8px 16px;
+            background-color: #ffffff;
+            color: #000000;
+            border: 2px solid #000000;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .modal-close:hover {
+            background-color: #f0f0f0;
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .modal-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background-color: #ffffff;
+        }
+
+        .email-compose {
+            border: 1px solid #000000;
+            padding: 20px;
+            background-color: #ffffff;
+            margin-bottom: 25px;
+        }
+
+        .email-compose h3 {
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #000000;
+        }
+
+        .compose-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .compose-grid .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .email-compose textarea {
+            width: 100%;
+            min-height: 160px;
+            border: 1px solid #000000;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            color: #000000;
+            background-color: #ffffff;
+            margin-top: 10px;
+        }
+
+        .compose-options {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .compose-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-top: 15px;
+            flex-wrap: wrap;
         }
     </style>
 </head>
@@ -375,10 +522,46 @@
                 <div class="version-info">Version: <span id="version">v{{ version }}</span></div>
             </div>
             <div id="receive-mail-content">
+                <div class="email-compose">
+                    <h3>Send Email (SMTP)</h3>
+                    <div class="compose-grid">
+                        <div class="form-group">
+                            <label for="compose-to">To:</label>
+                            <input type="text" id="compose-to" placeholder="recipient@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="compose-subject">Subject:</label>
+                            <input type="text" id="compose-subject" placeholder="Subject line">
+                        </div>
+                        <div class="form-group">
+                            <label for="compose-sender-name">Sender Name (optional):</label>
+                            <input type="text" id="compose-sender-name" placeholder="Mail Task">
+                        </div>
+                    </div>
+                    <textarea id="compose-body" placeholder="Write your email content here..."></textarea>
+                    <div class="compose-options">
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="compose-is-html">
+                            <span>Send as HTML</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="use-primary-smtp" checked>
+                            <span>Use Primary SMTP</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="use-backup-smtp" checked>
+                            <span>Use Backup SMTP</span>
+                        </label>
+                    </div>
+                    <div class="compose-actions">
+                        <button class="form-button" onclick="sendEmail()">Send Email</button>
+                        <div id="send-email-status" class="message info hidden"></div>
+                    </div>
+                </div>
                 <button class="form-button" onclick="fetchGmailEmails()" style="margin-bottom: 20px; margin-right: 10px;">Fetch Gmail</button>
                 <button class="form-button" onclick="fetch163Emails()" style="margin-bottom: 20px; margin-right: 10px;">Fetch 163.com</button>
                 <button class="form-button" onclick="fetchQQEmails()" style="margin-bottom: 20px;">Fetch QQ Email</button>
-                <div id="error-message"></div>
+                <div id="error-message" class="message hidden"></div>
                 <div id="email-list" class="email-list"></div>
             </div>
             <div id="task-content" class="hidden">
@@ -494,6 +677,77 @@
                             </label>
                         </div>
                     </div>
+
+                    <div class="settings-section" style="margin-top: 30px;">
+                        <h3 style="font-family: Arial, sans-serif; font-size: 18px; color: #000000; margin-bottom: 15px; border-bottom: 1px solid #000000; padding-bottom: 10px;">SMTP Configuration</h3>
+                        <div class="form-group">
+                            <label for="smtp-sender-name">Default Sender Name:</label>
+                            <input type="text" id="smtp-sender-name" placeholder="Mail Task">
+                        </div>
+                        <div class="form-group">
+                            <strong style="font-family: Arial, sans-serif; font-size: 14px;">Primary SMTP (Gmail)</strong>
+                        </div>
+                        <div class="form-group">
+                            <label for="smtp-primary-server">Server:</label>
+                            <input type="text" id="smtp-primary-server" placeholder="smtp.gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="smtp-primary-port">Port:</label>
+                            <input type="number" id="smtp-primary-port" placeholder="587">
+                        </div>
+                        <div class="form-group">
+                            <label for="smtp-primary-username">Username:</label>
+                            <input type="text" id="smtp-primary-username" placeholder="your-email@gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="smtp-primary-password">App Password:</label>
+                            <input type="password" id="smtp-primary-password" placeholder="Enter app password">
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="smtp-primary-use-ssl">
+                                <span>Use SSL</span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="smtp-primary-use-tls" checked>
+                                <span>Use TLS</span>
+                            </label>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 20px;">
+                            <strong style="font-family: Arial, sans-serif; font-size: 14px;">Backup SMTP (163.com)</strong>
+                        </div>
+                        <div class="form-group">
+                            <label for="smtp-backup-server">Server:</label>
+                            <input type="text" id="smtp-backup-server" placeholder="smtp.163.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="smtp-backup-port">Port:</label>
+                            <input type="number" id="smtp-backup-port" placeholder="465">
+                        </div>
+                        <div class="form-group">
+                            <label for="smtp-backup-username">Username:</label>
+                            <input type="text" id="smtp-backup-username" placeholder="your-email@163.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="smtp-backup-password">Authorization Code:</label>
+                            <input type="password" id="smtp-backup-password" placeholder="Enter authorization code">
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="smtp-backup-use-ssl" checked>
+                                <span>Use SSL</span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="smtp-backup-use-tls">
+                                <span>Use TLS</span>
+                            </label>
+                        </div>
+                    </div>
                     <div class="profile-detail-actions">
                         <button class="form-button danger" onclick="deleteCurrentProfile()">Delete Profile</button>
                         <button class="form-button" onclick="saveCurrentProfile()" style="padding: 15px 30px; font-size: 16px;">Save Profile</button>
@@ -503,9 +757,29 @@
         </div>
     </div>
 
+    <div id="email-modal" class="modal hidden" onclick="closeEmailModal()" role="dialog" aria-modal="true" aria-labelledby="email-modal-subject">
+        <div class="modal-dialog" onclick="event.stopPropagation();">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title" id="email-modal-subject">Email</div>
+                    <div class="modal-meta" id="email-modal-meta"></div>
+                </div>
+                <button class="modal-close" onclick="closeEmailModal()">Close</button>
+            </div>
+            <div class="modal-body">
+                <iframe id="email-modal-frame" class="modal-iframe" title="Email content"></iframe>
+            </div>
+        </div>
+    </div>
+
     <script>
         const VERSION = '{{ version }}';
         document.getElementById('version').textContent = 'v' + VERSION;
+        const emailModal = document.getElementById('email-modal');
+        const emailModalSubject = document.getElementById('email-modal-subject');
+        const emailModalMeta = document.getElementById('email-modal-meta');
+        const emailModalFrame = document.getElementById('email-modal-frame');
+        let currentEmails = [];
 
         // Initialize Profile 1 with default values from configuration
         function initializeProfile1() {
@@ -536,6 +810,25 @@
                     password: '',
                     use_ssl: true,
                     use_tls: false
+                },
+                smtp: {
+                    sender_name: 'Mail Task',
+                    primary: {
+                        server: 'smtp.gmail.com',
+                        port: 587,
+                        username: 'eric.brilliant@gmail.com',
+                        password: 'opqx pfna kagb bznr',
+                        use_ssl: false,
+                        use_tls: true
+                    },
+                    backup: {
+                        server: 'smtp.163.com',
+                        port: 465,
+                        username: '19902475292@163.com',
+                        password: 'JDy8MigeNmsESZRa',
+                        use_ssl: true,
+                        use_tls: false
+                    }
                 }
             };
             localStorage.setItem('emailProfiles', JSON.stringify(profiles));
@@ -614,6 +907,26 @@
             document.getElementById('qq-use-ssl').checked = profile.qq?.use_ssl ?? true;
             document.getElementById('qq-use-tls').checked = profile.qq?.use_tls ?? false;
 
+            const smtp = profile.smtp || {};
+            const primarySmtp = smtp.primary || {};
+            const backupSmtp = smtp.backup || {};
+
+            document.getElementById('smtp-sender-name').value = smtp.sender_name || '';
+
+            document.getElementById('smtp-primary-server').value = primarySmtp.server || '';
+            document.getElementById('smtp-primary-port').value = primarySmtp.port || 587;
+            document.getElementById('smtp-primary-username').value = primarySmtp.username || '';
+            document.getElementById('smtp-primary-password').value = primarySmtp.password || '';
+            document.getElementById('smtp-primary-use-ssl').checked = primarySmtp.use_ssl ?? false;
+            document.getElementById('smtp-primary-use-tls').checked = primarySmtp.use_tls ?? true;
+
+            document.getElementById('smtp-backup-server').value = backupSmtp.server || '';
+            document.getElementById('smtp-backup-port').value = backupSmtp.port || 465;
+            document.getElementById('smtp-backup-username').value = backupSmtp.username || '';
+            document.getElementById('smtp-backup-password').value = backupSmtp.password || '';
+            document.getElementById('smtp-backup-use-ssl').checked = backupSmtp.use_ssl ?? true;
+            document.getElementById('smtp-backup-use-tls').checked = backupSmtp.use_tls ?? false;
+
             document.getElementById('profile-list-view').classList.add('hidden');
             document.getElementById('profile-detail-view').classList.remove('hidden');
         }
@@ -656,10 +969,31 @@
                 use_ssl: document.getElementById('qq-use-ssl').checked,
                 use_tls: document.getElementById('qq-use-tls').checked
             };
+
+            profiles[profileKey].smtp = {
+                sender_name: document.getElementById('smtp-sender-name').value.trim(),
+                primary: {
+                    server: document.getElementById('smtp-primary-server').value.trim(),
+                    port: parseInt(document.getElementById('smtp-primary-port').value) || 0,
+                    username: document.getElementById('smtp-primary-username').value.trim(),
+                    password: document.getElementById('smtp-primary-password').value.trim(),
+                    use_ssl: document.getElementById('smtp-primary-use-ssl').checked,
+                    use_tls: document.getElementById('smtp-primary-use-tls').checked
+                },
+                backup: {
+                    server: document.getElementById('smtp-backup-server').value.trim(),
+                    port: parseInt(document.getElementById('smtp-backup-port').value) || 0,
+                    username: document.getElementById('smtp-backup-username').value.trim(),
+                    password: document.getElementById('smtp-backup-password').value.trim(),
+                    use_ssl: document.getElementById('smtp-backup-use-ssl').checked,
+                    use_tls: document.getElementById('smtp-backup-use-tls').checked
+                }
+            };
             
             localStorage.setItem('emailProfiles', JSON.stringify(profiles));
             showError('Profile saved successfully', false);
             renderProfileList();
+            updateComposeDefaults();
         }
 
         // Create new profile
@@ -698,6 +1032,25 @@
                     password: '',
                     use_ssl: true,
                     use_tls: false
+                },
+                smtp: {
+                    sender_name: '',
+                    primary: {
+                        server: 'smtp.gmail.com',
+                        port: 587,
+                        username: '',
+                        password: '',
+                        use_ssl: false,
+                        use_tls: true
+                    },
+                    backup: {
+                        server: 'smtp.163.com',
+                        port: 465,
+                        username: '',
+                        password: '',
+                        use_ssl: true,
+                        use_tls: false
+                    }
                 }
             };
             
@@ -708,6 +1061,7 @@
             openProfileDetail(profileKey);
             renderProfileList();
             showError('Profile created successfully', false);
+            updateComposeDefaults();
         }
 
         // Delete current profile
@@ -738,6 +1092,12 @@
                 setCurrentProfile('profile1');
             }
             showProfileList();
+            updateComposeDefaults();
+            document.addEventListener('keydown', (evt) => {
+                if (evt.key === 'Escape' && !emailModal.classList.contains('hidden')) {
+                    closeEmailModal();
+                }
+            });
         };
 
         function showReceiveMail() {
@@ -769,14 +1129,17 @@
         }
 
 
-        function showError(message, isError = true) {
+        function showError(message, isError = true, timeoutMs = 3000) {
             const errorDiv = document.getElementById('error-message');
+            if (!errorDiv) return;
             errorDiv.textContent = message;
-            errorDiv.className = isError ? 'error' : 'error';
-            errorDiv.style.display = 'block';
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 3000);
+            errorDiv.className = `message ${isError ? 'error' : 'success'}`;
+            errorDiv.classList.remove('hidden');
+            if (timeoutMs > 0) {
+                setTimeout(() => {
+                    errorDiv.classList.add('hidden');
+                }, timeoutMs);
+            }
         }
 
         function getCurrentProfile() {
@@ -788,6 +1151,18 @@
 
         function setCurrentProfile(profileKey) {
             localStorage.setItem('selectedProfile', profileKey);
+            updateComposeDefaults();
+        }
+
+        function updateComposeDefaults() {
+            const profile = getCurrentProfile();
+            const senderInput = document.getElementById('compose-sender-name');
+            if (!senderInput) return;
+            const defaultName = profile.smtp?.sender_name || profile.name || 'Mail Task';
+            senderInput.placeholder = defaultName;
+            if (!senderInput.value.trim()) {
+                senderInput.value = defaultName;
+            }
         }
 
         function fetchGmailEmails() {
@@ -816,13 +1191,13 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
-                        emailList.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                        emailList.innerHTML = `<div class="message error">Error: ${escapeHtml(data.error)}</div>`;
                     } else {
                         displayEmails(data.emails || []);
                     }
                 })
                 .catch(error => {
-                    emailList.innerHTML = `<div class="error">Error fetching emails: ${error.message}</div>`;
+                    emailList.innerHTML = `<div class="message error">Error fetching emails: ${escapeHtml(error.message)}</div>`;
                 });
         }
 
@@ -856,13 +1231,13 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
-                        emailList.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                        emailList.innerHTML = `<div class="message error">Error: ${escapeHtml(data.error)}</div>`;
                     } else {
                         displayEmails(data.emails || []);
                     }
                 })
                 .catch(error => {
-                    emailList.innerHTML = `<div class="error">Error fetching emails: ${error.message}</div>`;
+                    emailList.innerHTML = `<div class="message error">Error fetching emails: ${escapeHtml(error.message)}</div>`;
                 });
         }
 
@@ -892,34 +1267,184 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
-                        emailList.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                        emailList.innerHTML = `<div class="message error">Error: ${escapeHtml(data.error)}</div>`;
                     } else {
                         displayEmails(data.emails || []);
                     }
                 })
                 .catch(error => {
-                    emailList.innerHTML = `<div class="error">Error fetching emails: ${error.message}</div>`;
+                    emailList.innerHTML = `<div class="message error">Error fetching emails: ${escapeHtml(error.message)}</div>`;
+                });
+        }
+
+        function parseEmailList(value) {
+            if (!value) {
+                return [];
+            }
+            return value
+                .split(/[;,]+/)
+                .map(addr => addr.trim())
+                .filter(addr => addr.length > 0);
+        }
+
+        function showSendStatus(message, state = 'info', timeoutMs = 4000) {
+            const statusDiv = document.getElementById('send-email-status');
+            if (!statusDiv) return;
+            statusDiv.textContent = message;
+            statusDiv.className = `message ${state}`;
+            statusDiv.classList.remove('hidden');
+            if (timeoutMs > 0) {
+                setTimeout(() => {
+                    statusDiv.classList.add('hidden');
+                }, timeoutMs);
+            }
+        }
+
+        function sendEmail() {
+            const recipientsValue = document.getElementById('compose-to').value;
+            const subjectValue = document.getElementById('compose-subject').value;
+            const bodyValue = document.getElementById('compose-body').value;
+            const senderNameInput = document.getElementById('compose-sender-name').value.trim();
+            const sendAsHtml = document.getElementById('compose-is-html').checked;
+            const usePrimary = document.getElementById('use-primary-smtp').checked;
+            const useBackup = document.getElementById('use-backup-smtp').checked;
+
+            const recipients = parseEmailList(recipientsValue);
+            if (recipients.length === 0) {
+                showSendStatus('Please enter at least one recipient email address.', 'error');
+                return;
+            }
+
+            if (!bodyValue.trim()) {
+                showSendStatus('Email body cannot be empty.', 'error');
+                return;
+            }
+
+            const profile = getCurrentProfile();
+            const smtpConfig = profile.smtp || {};
+            const configs = [];
+
+            const primary = smtpConfig.primary || {};
+            if (usePrimary && primary.server && primary.username && primary.password) {
+                configs.push({
+                    name: 'Primary SMTP',
+                    server: primary.server,
+                    port: primary.port,
+                    username: primary.username,
+                    password: primary.password,
+                    use_ssl: !!primary.use_ssl,
+                    use_tls: !!primary.use_tls,
+                    sender_name: smtpConfig.sender_name,
+                    from_address: primary.username
+                });
+            }
+
+            const backup = smtpConfig.backup || {};
+            if (useBackup && backup.server && backup.username && backup.password) {
+                configs.push({
+                    name: 'Backup SMTP',
+                    server: backup.server,
+                    port: backup.port,
+                    username: backup.username,
+                    password: backup.password,
+                    use_ssl: !!backup.use_ssl,
+                    use_tls: !!backup.use_tls,
+                    sender_name: smtpConfig.sender_name,
+                    from_address: backup.username
+                });
+            }
+
+            const payload = {
+                to: recipients,
+                subject: subjectValue,
+                body: bodyValue,
+                is_html: sendAsHtml,
+                sender_name: senderNameInput || smtpConfig.sender_name || profile.name || 'Mail Task'
+            };
+
+            if (configs.length > 0) {
+                payload.configs = configs;
+            }
+
+            showSendStatus('Sending email...', 'info', 0);
+
+            fetch('/api/send-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+                .then(async response => {
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to send email');
+                    }
+                    document.getElementById('compose-body').value = '';
+                    showSendStatus(`Email sent via ${data.provider || 'SMTP provider'}.`, 'success');
+                })
+                .catch(error => {
+                    showSendStatus(`Send failed: ${error.message}`, 'error');
                 });
         }
 
         function displayEmails(emails) {
             const emailList = document.getElementById('email-list');
-            
-            if (emails.length === 0) {
-                emailList.innerHTML = '<div class="loading">No emails found</div>';
+            currentEmails = Array.isArray(emails) ? emails : [];
+
+            if (currentEmails.length === 0) {
+                emailList.innerHTML = '<div class="loading">No emails found for today</div>';
                 return;
             }
-            
-            emailList.innerHTML = emails.map(email => `
-                <div class="email-item">
+
+            emailList.innerHTML = currentEmails.map((email, index) => `
+                <div class="email-item" data-index="${index}">
                     <div class="email-header">
                         <div class="email-subject">${escapeHtml(email.subject || 'No Subject')}</div>
                         <div class="email-date">${escapeHtml(email.date || '')}</div>
                     </div>
                     <div class="email-from">From: ${escapeHtml(email.from || '')}</div>
-                    <div class="email-preview">${escapeHtml(email.body || '')}</div>
+                    <div class="email-preview">${escapeHtml(email.preview || '')}</div>
                 </div>
             `).join('');
+
+            document.querySelectorAll('.email-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const index = parseInt(item.getAttribute('data-index'), 10);
+                    openEmailModal(index);
+                });
+            });
+        }
+
+        function openEmailModal(index) {
+            if (Number.isNaN(index)) {
+                return;
+            }
+            const email = currentEmails[index];
+            if (!email) {
+                return;
+            }
+
+            emailModalSubject.textContent = email.subject || 'No Subject';
+            const metaLines = [
+                `From: ${email.from || 'Unknown sender'}`,
+                `Date: ${email.date || 'Unknown date'}`
+            ];
+            emailModalMeta.textContent = metaLines.join('\n');
+
+            if (email.html_body) {
+                emailModalFrame.srcdoc = email.html_body;
+            } else {
+                const plain = email.plain_body || '';
+                emailModalFrame.srcdoc = `<pre style="font-family: Arial, sans-serif; white-space: pre-wrap;">${escapeHtml(plain)}</pre>`;
+            }
+
+            emailModal.classList.remove('hidden');
+        }
+
+        function closeEmailModal() {
+            emailModal.classList.add('hidden');
+            emailModalFrame.srcdoc = '';
         }
 
         function escapeHtml(text) {
