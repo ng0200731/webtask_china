@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Receiver - v1.0.5</title>
+    <title>Email Receiver - v{{ version }}</title>
     <style>
         * {
             margin: 0;
@@ -25,13 +25,19 @@
         }
 
         .left-menu {
-            width: 20%;
+            width: 60px;
             background-color: #ffffff;
             border-right: 2px solid #000000;
-            padding: 20px;
+            padding: 20px 10px;
             display: flex;
             flex-direction: column;
             gap: 15px;
+            transition: width 0.2s ease;
+            overflow: hidden;
+        }
+
+        .left-menu:hover {
+            width: 220px;
         }
 
         .menu-button {
@@ -45,6 +51,9 @@
             cursor: pointer;
             text-align: left;
             transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
         .menu-button:hover {
@@ -57,7 +66,7 @@
         }
 
         .right-content {
-            width: 80%;
+            flex: 1;
             background-color: #ffffff;
             padding: 20px;
             overflow-y: auto;
@@ -321,19 +330,45 @@
             border-color: #000000;
             color: #000000;
         }
+
+        /* Collapsed vs expanded labels */
+        .label-short {
+            font-weight: bold;
+            width: 24px;
+            min-width: 24px;
+            text-align: center;
+        }
+        .label-full {
+            white-space: nowrap;
+        }
+        .left-menu .label-full {
+            display: none;
+        }
+        .left-menu:hover .label-full {
+            display: inline;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="left-menu">
-            <button class="menu-button active" onclick="showReceiveMail()">Receive Mail</button>
-            <button class="menu-button" onclick="showTask()">Task</button>
-            <button class="menu-button" onclick="showSettings()">Settings</button>
+            <button class="menu-button active" onclick="showReceiveMail()">
+                <span class="label-short">R</span>
+                <span class="label-full">Receive Mail</span>
+            </button>
+            <button class="menu-button" onclick="showTask()">
+                <span class="label-short">T</span>
+                <span class="label-full">Task</span>
+            </button>
+            <button class="menu-button" onclick="showSettings()">
+                <span class="label-short">S</span>
+                <span class="label-full">Settings</span>
+            </button>
         </div>
         <div class="right-content">
             <div class="content-header">
                 <h2 id="content-title">Receive Mail</h2>
-                <div class="version-info">Version: <span id="version">v1.0.5</span></div>
+                <div class="version-info">Version: <span id="version">v{{ version }}</span></div>
             </div>
             <div id="receive-mail-content">
                 <button class="form-button" onclick="fetchGmailEmails()" style="margin-bottom: 20px; margin-right: 10px;">Fetch Gmail</button>
@@ -465,7 +500,7 @@
     </div>
 
     <script>
-        const VERSION = '1.0.5';
+        const VERSION = '{{ version }}';
         document.getElementById('version').textContent = 'v' + VERSION;
 
         // Initialize Profile 1 with default values from configuration

@@ -6,7 +6,7 @@ from datetime import datetime
 import ssl
 
 app = Flask(__name__)
-app.config['VERSION'] = '1.0.5'
+app.config['VERSION'] = '1.0.6'
 
 # Default email configurations (can be overridden via settings)
 GMAIL_CONFIG = {
