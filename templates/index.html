@@ -105,6 +105,7 @@
             transition: background-color 0.2s;
             display: flex;
             align-items: stretch;
+            overflow: hidden;
         }
 
         .email-item:hover {
@@ -112,8 +113,13 @@
         }
 
         .email-content {
-            flex: 1 1 calc(100% - 80px);
+            flex: 1 1 auto;
+            min-width: 0;
             padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow: hidden;
         }
 
         .email-actions {
@@ -143,6 +149,9 @@
             font-size: 18px;
             font-weight: bold;
             color: #000000;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .email-sequence-inline {
             font-family: Arial, sans-serif;
@@ -155,6 +164,9 @@
             font-family: Arial, sans-serif;
             font-size: 12px;
             color: #000000;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .email-from {
@@ -162,6 +174,9 @@
             font-size: 14px;
             color: #000000;
             margin-bottom: 5px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .email-preview {
@@ -169,8 +184,12 @@
             font-size: 12px;
             color: #000000;
             margin-top: 10px;
-            max-height: 60px;
             overflow: hidden;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
         }
 
         .loading {
@@ -962,6 +981,15 @@
             return `${yyyy}-${mm}-${dd}`;
         }
 
+        function getYesterdayKey() {
+            const d = new Date();
+            d.setDate(d.getDate() - 1);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
         function extractEmailAddress(rawFrom) {
             if (!rawFrom) return '';
             const match = rawFrom.match(/<([^>]+)>/);
@@ -1418,6 +1446,36 @@
             showError('Profile deleted successfully', false);
         }
 
+        async function saveYesterdayEmailsToSQLite() {
+            const yesterdayKey = getYesterdayKey();
+            const providers = ['gmail', 'qq', '163'];
+            
+            for (const provider of providers) {
+                try {
+                    const key = `emails:${provider}:${yesterdayKey}`;
+                    const raw = localStorage.getItem(key);
+                    if (!raw) continue;
+                    
+                    const parsed = JSON.parse(raw);
+                    if (parsed?.date === yesterdayKey && Array.isArray(parsed.emails) && parsed.emails.length > 0) {
+                        const emails = parsed.emails.map(item => ensureEmailSequence(item));
+                        await fetch('/api/emails', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                provider: provider,
+                                emails: emails,
+                                date: yesterdayKey
+                            })
+                        });
+                        console.log(`Saved ${emails.length} yesterday emails for ${provider} to SQLite`);
+                    }
+                } catch (error) {
+                    console.error(`Failed to save yesterday emails for ${provider}:`, error);
+                }
+            }
+        }
+
         // Load settings on page load
         window.onload = async function() {
             initializeProfile1();
@@ -1427,6 +1485,7 @@
             showProfileList();
             updateComposeDefaults();
             await loadCustomers(false);
+            await saveYesterdayEmailsToSQLite();
             await loadCachedEmailsOnStartup();
             document.addEventListener('keydown', (evt) => {
                 if (evt.key === 'Escape' && !emailModal.classList.contains('hidden')) {

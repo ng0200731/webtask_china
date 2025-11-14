@@ -13,7 +13,7 @@ from pathlib import Path
 import sqlite3
 
 app = Flask(__name__)
-app.config['VERSION'] = '1.0.25'
+app.config['VERSION'] = '1.0.27'
 
 # Default email configurations (can be overridden via settings)
 GMAIL_CONFIG = {
@@ -622,42 +622,59 @@ def customers_endpoint():
         return jsonify({'error': f'Database error: {str(exc)}'}), 500
 
 
-@app.route('/api/emails', methods=['GET'])
-def get_saved_emails():
-    provider = (request.args.get('provider') or '').strip().lower()
-    if not provider:
-        return jsonify({'error': 'Provider query parameter is required'}), 400
+@app.route('/api/emails', methods=['GET', 'POST'])
+def handle_emails():
+    if request.method == 'GET':
+        provider = (request.args.get('provider') or '').strip().lower()
+        if not provider:
+            return jsonify({'error': 'Provider query parameter is required'}), 400
 
-    today_iso = datetime.now().date().isoformat()
-    connection = get_db_connection()
-    cursor = connection.cursor()
-    cursor.execute("""
-        SELECT provider, email_uid, subject, from_addr, to_addr, date, preview, plain_body, html_body, sequence, fetched_at
-        FROM emails
-        WHERE provider = ?
-          AND date(datetime(fetched_at)) = ?
-        ORDER BY datetime(date) DESC, datetime(fetched_at) DESC
-    """, (provider, today_iso))
-    rows = cursor.fetchall()
-    cursor.close()
-    connection.close()
+        today_iso = datetime.now().date().isoformat()
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT provider, email_uid, subject, from_addr, to_addr, date, preview, plain_body, html_body, sequence, fetched_at
+            FROM emails
+            WHERE provider = ?
+              AND date(datetime(fetched_at)) = ?
+            ORDER BY datetime(date) DESC, datetime(fetched_at) DESC
+        """, (provider, today_iso))
+        rows = cursor.fetchall()
+        cursor.close()
+        connection.close()
 
-    emails = []
-    for row in rows:
-        emails.append({
-            'id': row[1],
-            'subject': row[2],
-            'from': row[3],
-            'to': row[4],
-            'date': row[5],
-            'preview': row[6],
-            'plain_body': row[7],
-            'html_body': row[8],
-            'sequence': row[9],
-            'fetched_at': row[10]
-        })
+        emails = []
+        for row in rows:
+            emails.append({
+                'id': row[1],
+                'subject': row[2],
+                'from': row[3],
+                'to': row[4],
+                'date': row[5],
+                'preview': row[6],
+                'plain_body': row[7],
+                'html_body': row[8],
+                'sequence': row[9],
+                'fetched_at': row[10]
+            })
 
-    return jsonify({'provider': provider, 'emails': emails})
+        return jsonify({'provider': provider, 'emails': emails})
+    
+    elif request.method == 'POST':
+        data = request.json or {}
+        provider = (data.get('provider') or '').strip().lower()
+        emails = data.get('emails') or []
+        target_date = data.get('date')  # Optional: YYYY-MM-DD format
+        
+        if not provider:
+            return jsonify({'error': 'Provider is required'}), 400
+        
+        if not isinstance(emails, list):
+            return jsonify({'error': 'Emails must be a list'}), 400
+        
+        # Save emails (save_emails handles the date from email.date field)
+        save_emails(provider, emails)
+        return jsonify({'status': 'saved', 'count': len(emails)})
 
 
 @app.route('/api/version', methods=['GET'])
