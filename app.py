@@ -161,6 +161,19 @@ def initialize_database():
             DELETE FROM oauth_states 
             WHERE datetime(created_at) < datetime('now', '-10 minutes')
         """)
+        # Tasks table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sequence TEXT,
+                customer TEXT,
+                email TEXT,
+                catalogue TEXT NOT NULL,
+                template TEXT NOT NULL,
+                attachments TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
         connection.commit()
     finally:
         if cursor:
@@ -1244,6 +1257,87 @@ def handle_emails():
 def get_version():
     """Get application version"""
     return jsonify({'version': app.config['VERSION']})
+
+
+@app.route('/api/tasks', methods=['GET', 'POST'])
+def handle_tasks():
+    """Handle task creation and retrieval"""
+    if request.method == 'GET':
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            cursor.execute("""
+                SELECT id, sequence, customer, email, catalogue, template, attachments, created_at
+                FROM tasks
+                ORDER BY datetime(created_at) DESC
+            """)
+            rows = cursor.fetchall()
+            cursor.close()
+            connection.close()
+            
+            tasks = []
+            for row in rows:
+                attachments = []
+                try:
+                    attachments = json.loads(row[6] or '[]')
+                except (TypeError, ValueError):
+                    attachments = []
+                
+                tasks.append({
+                    'id': row[0],
+                    'sequence': row[1],
+                    'customer': row[2],
+                    'email': row[3],
+                    'catalogue': row[4],
+                    'template': row[5],
+                    'attachments': attachments,
+                    'created_at': row[7]
+                })
+            
+            return jsonify({'tasks': tasks})
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+    
+    elif request.method == 'POST':
+        data = request.json or {}
+        sequence = data.get('sequence', '')
+        customer = data.get('customer', '')
+        email = data.get('email', '')
+        catalogue = data.get('catalogue', '').strip()
+        template = data.get('template', '').strip()
+        attachments = data.get('attachments', [])
+        
+        if not catalogue:
+            return jsonify({'error': 'Catalogue is required'}), 400
+        
+        if not template:
+            return jsonify({'error': 'Template is required'}), 400
+        
+        try:
+            attachments_json = json.dumps(attachments) if attachments else '[]'
+            
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            cursor.execute("""
+                INSERT INTO tasks (sequence, customer, email, catalogue, template, attachments, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            """, (sequence, customer, email, catalogue, template, attachments_json))
+            connection.commit()
+            task_id = cursor.lastrowid
+            cursor.close()
+            connection.close()
+            
+            return jsonify({
+                'id': task_id,
+                'sequence': sequence,
+                'customer': customer,
+                'email': email,
+                'catalogue': catalogue,
+                'template': template,
+                'attachments': attachments
+            }), 201
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
 
 
 initialize_database()
