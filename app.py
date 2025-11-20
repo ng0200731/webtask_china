@@ -1342,6 +1342,26 @@ def handle_tasks():
             return jsonify({'error': f'Database error: {str(exc)}'}), 500
 
 
+@app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    """Delete a task by ID"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        connection.commit()
+        deleted = cursor.rowcount > 0
+        cursor.close()
+        connection.close()
+        
+        if deleted:
+            return jsonify({'status': 'deleted', 'id': task_id})
+        else:
+            return jsonify({'error': 'Task not found'}), 404
+    except Exception as exc:
+        return jsonify({'error': f'Database error: {str(exc)}'}), 500
+
+
 initialize_database()
 
 
