@@ -612,8 +612,10 @@ def fetch_gmail_api(limit=50, days_back=1):
 
 
 def build_sequence_code(from_address: str, email_date: Optional[datetime] = None) -> str:
-    """Construct a sequence code YYYYMMDD_<two letters before @>_<domain label>."""
-    sequence_date = (email_date or datetime.now()).strftime('%Y%m%d')
+    """Construct a sequence code yyyymmdd_hhmmss_<two letters>_<domain>."""
+    email_datetime = email_date or datetime.now()
+    sequence_date = email_datetime.strftime('%Y%m%d_%H%M%S')
+    
     parsed_email = email.utils.parseaddr(from_address)[1].lower() if from_address else ''
     local_part = ''
     domain_part = ''

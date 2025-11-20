@@ -1306,6 +1306,7 @@
         let currentEmails = [];
         let currentProvider = null;
         let customerCache = [];
+        let currentPreviewObjectUrl = null;
         const PROVIDER_LABELS = {
             gmail: 'Gmail',
             qq: 'QQ',
@@ -1345,10 +1346,23 @@
         }
 
         function computeSequence(email) {
-            const todayKey = getTodayKey().replace(/-/g, '');
-            const rawDate = (email?.date || '').slice(0, 10).replace(/-/g, '');
-            const sequenceDate = /^\d{8}$/.test(rawDate) ? rawDate : todayKey;
-
+            const dateString = email?.date;
+            let timestamp = Date.now();
+            if (dateString) {
+                const parsed = new Date(dateString);
+                if (!isNaN(parsed.getTime())) {
+                    timestamp = parsed.getTime();
+                }
+            }
+            const dt = new Date(timestamp);
+            const yyyy = dt.getFullYear();
+            const mm = String(dt.getMonth() + 1).padStart(2, '0');
+            const dd = String(dt.getDate()).padStart(2, '0');
+            const hh = String(dt.getHours()).padStart(2, '0');
+            const mi = String(dt.getMinutes()).padStart(2, '0');
+            const ss = String(dt.getSeconds()).padStart(2, '0');
+            const sequenceDate = `${yyyy}${mm}${dd}_${hh}${mi}${ss}`;
+            
             const address = extractEmailAddress(email?.from || '');
             let localPart = '';
             let domainPart = '';
@@ -1376,9 +1390,9 @@
 
         function ensureEmailSequence(email) {
             if (!email) return email;
-            if (!email.sequence) {
-                email.sequence = computeSequence(email);
-            }
+            // Always recompute sequence to ensure new format (yyyymmdd_hhmmss)
+            // This ensures consistency even if old data has old format sequence
+            email.sequence = computeSequence(email);
             return email;
         }
 
@@ -1432,6 +1446,25 @@
                 console.error('Failed to load cached emails', error);
             }
             return null;
+        }
+
+        function registerEmailKeys(emailObj, keySet) {
+            if (!emailObj || !keySet) return;
+            const id = (emailObj.id || emailObj.email_uid || '').trim();
+            if (id) {
+                keySet.add(`id:${id}`);
+            } else {
+                const sequence = (emailObj.sequence || '').trim();
+                if (sequence) {
+                    keySet.add(`seq:${sequence}`);
+                }
+            }
+            const subject = (emailObj.subject || '').trim();
+            const date = (emailObj.date || '').trim();
+            const from = (emailObj.from || '').trim();
+            if (subject && date && from) {
+                keySet.add(`key:${subject}|${date}|${from}`);
+            }
         }
 
         function updateContentTitle(provider, cached = false) {
@@ -2194,22 +2227,7 @@
             const existingEmailKeys = new Set();
             (currentEmails || []).forEach(email => {
                 const emailObj = ensureEmailSequence({ ...email });
-                // Use sequence code as primary key (most reliable)
-                if (emailObj.sequence) {
-                    existingEmailKeys.add(`seq:${emailObj.sequence}`);
-                }
-                // Also use ID as backup
-                const id = emailObj.id || emailObj.email_uid || '';
-                if (id) {
-                    existingEmailKeys.add(`id:${id}`);
-                }
-                // Use subject + date + from as fallback
-                const subject = (emailObj.subject || '').trim();
-                const date = (emailObj.date || '').trim();
-                const from = (emailObj.from || '').trim();
-                if (subject && date && from) {
-                    existingEmailKeys.add(`key:${subject}|${date}|${from}`);
-                }
+                registerEmailKeys(emailObj, existingEmailKeys);
             });
             
             const existingCount = existingEmailKeys.size;
@@ -2225,19 +2243,7 @@
                     // Update existing keys after displaying cached emails
                     currentEmails.forEach(email => {
                         const emailObj = ensureEmailSequence({ ...email });
-                        if (emailObj.sequence) {
-                            existingEmailKeys.add(`seq:${emailObj.sequence}`);
-                        }
-                        const id = emailObj.id || emailObj.email_uid || '';
-                        if (id) {
-                            existingEmailKeys.add(`id:${id}`);
-                        }
-                        const subject = (emailObj.subject || '').trim();
-                        const date = (emailObj.date || '').trim();
-                        const from = (emailObj.from || '').trim();
-                        if (subject && date && from) {
-                            existingEmailKeys.add(`key:${subject}|${date}|${from}`);
-                        }
+                        registerEmailKeys(emailObj, existingEmailKeys);
                     });
                 }
             }
@@ -2278,30 +2284,30 @@
                         const newEmails = fetchedEmails.filter(email => {
                             const emailObj = ensureEmailSequence({ ...email });
                             
-                            // Check by sequence code (most reliable)
-                            if (emailObj.sequence) {
-                                if (existingEmailKeys.has(`seq:${emailObj.sequence}`)) {
-                                    return false; // Duplicate found
+                            const id = (emailObj.id || emailObj.email_uid || '').trim();
+                            if (id) {
+                                if (existingEmailKeys.has(`id:${id}`)) {
+                                    return false;
+                                }
+                            } else {
+                                const sequenceKey = (emailObj.sequence || '').trim();
+                                if (sequenceKey && existingEmailKeys.has(`seq:${sequenceKey}`)) {
+                                    return false;
                                 }
                             }
                             
-                            // Check by ID
-                            const id = emailObj.id || emailObj.email_uid || '';
-                            if (id && existingEmailKeys.has(`id:${id}`)) {
-                                return false; // Duplicate found
-                            }
-                            
-                            // Check by subject + date + from
                             const subject = (emailObj.subject || '').trim();
                             const date = (emailObj.date || '').trim();
                             const from = (emailObj.from || '').trim();
                             if (subject && date && from) {
-                                if (existingEmailKeys.has(`key:${subject}|${date}|${from}`)) {
-                                    return false; // Duplicate found
+                                const fallbackKey = `key:${subject}|${date}|${from}`;
+                                if (existingEmailKeys.has(fallbackKey)) {
+                                    return false;
                                 }
                             }
                             
-                            return true; // New email
+                            registerEmailKeys(emailObj, existingEmailKeys);
+                            return true;
                         });
                         
                         // Merge new emails with existing ones
@@ -2991,6 +2997,18 @@
             });
         }
 
+        function isImageContent(filename, contentType) {
+            const name = (filename || '').toLowerCase();
+            const type = (contentType || '').toLowerCase();
+            return type.startsWith('image/') || /\.(png|jpe?g|gif|bmp|webp|svg)$/.test(name);
+        }
+
+        function isPDFContent(filename, contentType) {
+            const name = (filename || '').toLowerCase();
+            const type = (contentType || '').toLowerCase();
+            return type.includes('pdf') || name.endsWith('.pdf');
+        }
+
         function renderTaskAttachments(task) {
             const attachments = task.attachments || [];
             if (attachments.length === 0) {
@@ -2999,9 +3017,8 @@
             return attachments.map((att, idx) => {
                 const filename = escapeHtml(att.filename || 'attachment');
                 const contentType = att.content_type || 'application/octet-stream';
-                const lowerName = (att.filename || '').toLowerCase();
-                const isImage = contentType.startsWith('image/') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.png');
-                const isPDF = contentType === 'application/pdf' || lowerName.endsWith('.pdf');
+                const isImage = isImageContent(att.filename, contentType);
+                const isPDF = isPDFContent(att.filename, contentType);
                 const isViewable = Boolean(isImage || isPDF);
                 const viewLink = isViewable
                     ? `<span class="attachment-view-link" onclick="openTaskListAttachment(${task.id}, ${idx})">${filename}</span>`
@@ -3028,9 +3045,8 @@
                 return;
             }
             const contentType = att.content_type || 'application/octet-stream';
-            const dataUrl = `data:${contentType};base64,${att.data}`;
             const filename = att.filename || `Attachment ${attachmentIndex + 1}`;
-            openPreviewModal(dataUrl, contentType, filename);
+            openPreviewModal(att.data || '', contentType, filename);
         }
 
         function openTaskAttachmentPreview(attachmentIndex) {
@@ -3040,28 +3056,65 @@
             
             const att = window.taskModalAttachments[attachmentIndex];
             const contentType = att.content_type || 'application/octet-stream';
-            const dataUrl = `data:${contentType};base64,${att.data}`;
             const filename = att.filename || `Attachment ${attachmentIndex + 1}`;
             
-            openPreviewModal(dataUrl, contentType, filename);
+            openPreviewModal(att.data || '', contentType, filename);
         }
 
-        function openPreviewModal(dataUrl, contentType, filename) {
+        function revokePreviewObjectUrl() {
+            if (window.currentPreviewObjectUrl) {
+                try {
+                    URL.revokeObjectURL(window.currentPreviewObjectUrl);
+                } catch (err) {
+                    console.warn('Error revoking preview URL:', err);
+                }
+                window.currentPreviewObjectUrl = null;
+            }
+        }
+
+        function createObjectUrlFromBase64(base64Data, contentType) {
+            try {
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: contentType || 'application/octet-stream' });
+                return URL.createObjectURL(blob);
+            } catch (error) {
+                console.warn('Failed to convert base64 to object URL:', error);
+                return null;
+            }
+        }
+
+        function openPreviewModal(base64Data, contentType, filename) {
             if (!previewModal || !previewModalContent || !previewModalTitle) {
                 return;
             }
+
+            revokePreviewObjectUrl();
             
-            const isImage = contentType.startsWith('image/');
-            const isPDF = contentType === 'application/pdf';
+            const isImage = isImageContent(filename, contentType);
+            const isPDF = isPDFContent(filename, contentType);
             
             previewModalTitle.textContent = filename || 'Preview';
             
             let previewContent = '';
+            const dataUrl = `data:${contentType};base64,${base64Data}`;
             if (isImage) {
                 previewContent = `<img src="${dataUrl}" alt="${escapeHtml(filename || 'image')}" id="preview-image">`;
             } else if (isPDF) {
-                // Use iframe for better PDF display control
-                previewContent = `<iframe src="${dataUrl}" type="${contentType}" style="width: 100%; height: 100%; border: none; display: block; position: absolute; top: 0; left: 0; right: 0; bottom: 0;"></iframe>`;
+                const pdfContentType = contentType && contentType.toLowerCase().includes('pdf')
+                    ? contentType
+                    : 'application/pdf';
+                const objectUrl = createObjectUrlFromBase64(base64Data, pdfContentType);
+                if (objectUrl) {
+                    window.currentPreviewObjectUrl = objectUrl;
+                    previewContent = `<iframe src="${objectUrl}" type="${pdfContentType}" style="width: 100%; height: 100%; border: none; display: block; position: absolute; top: 0; left: 0; right: 0; bottom: 0;"></iframe>`;
+                } else {
+                    previewContent = `<p>Unable to preview PDF. <a href="${dataUrl}" download="${escapeHtml(filename || 'document.pdf')}">Download PDF</a></p>`;
+                }
             } else {
                 previewContent = `<p>Preview not available for this file type. <a href="${dataUrl}" download="${escapeHtml(filename)}">Download file</a></p>`;
             }
@@ -3188,6 +3241,7 @@
             if (previewModalContent) {
                 previewModalContent.innerHTML = '';
             }
+            revokePreviewObjectUrl();
         }
 
         function saveCustomer() {
