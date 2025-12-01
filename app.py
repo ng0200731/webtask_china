@@ -20,7 +20,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 app = Flask(__name__)
-app.config['VERSION'] = '1.0.51'
+app.config['VERSION'] = '1.0.55'
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Default email configurations (can be overridden via settings)
@@ -109,6 +109,7 @@ def initialize_database():
                 website TEXT,
                 remark TEXT,
                 attachments TEXT,
+                company_name TEXT,
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
@@ -127,6 +128,10 @@ def initialize_database():
             pass  # Column already exists
         try:
             cursor.execute("ALTER TABLE customers ADD COLUMN attachments TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        try:
+            cursor.execute("ALTER TABLE customers ADD COLUMN company_name TEXT")
         except sqlite3.OperationalError:
             pass  # Column already exists
         cursor.execute("""
@@ -203,12 +208,12 @@ def initialize_database():
             connection.close()
 
 
-def insert_customer(name: str, email_suffix: str, country: str = None, website: str = None, remark: str = None, attachments: str = None) -> int:
+def insert_customer(name: str, email_suffix: str, country: str = None, website: str = None, remark: str = None, attachments: str = None, company_name: str = None) -> int:
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute(
-        "INSERT INTO customers (name, email_suffix, country, website, remark, attachments) VALUES (?, ?, ?, ?, ?, ?)",
-        (name, email_suffix, country, website, remark, attachments)
+        "INSERT INTO customers (name, email_suffix, country, website, remark, attachments, company_name) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (name, email_suffix, country, website, remark, attachments, company_name)
     )
     connection.commit()
     customer_id = cursor.lastrowid
@@ -221,7 +226,7 @@ def fetch_customers():
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute("""
-        SELECT id, name, email_suffix, country, website, remark, attachments, created_at
+        SELECT id, name, email_suffix, country, website, remark, attachments, company_name, created_at
         FROM customers
         ORDER BY datetime(created_at) DESC
     """)
@@ -260,6 +265,10 @@ def fetch_customers():
             attachments = row['attachments'] if row['attachments'] else None
         except (KeyError, IndexError):
             pass
+        try:
+            company_name = row['company_name'] if row['company_name'] else None
+        except (KeyError, IndexError):
+            company_name = None
 
         customers.append({
             'id': row['id'],
@@ -269,6 +278,7 @@ def fetch_customers():
             'website': website,
             'remark': remark,
             'attachments': attachments,
+            'company_name': company_name,
             'created_at': created_at
         })
     return customers
@@ -1282,6 +1292,7 @@ def customers_endpoint():
     website = (data.get('website') or '').strip() or None
     remark = (data.get('remark') or '').strip() or None
     attachments = data.get('attachments') or None
+    company_name = (data.get('company_name') or '').strip() or None
 
     if not name:
         return jsonify({'error': 'Customer name is required'}), 400
@@ -1308,7 +1319,7 @@ def customers_endpoint():
         return jsonify({'error': 'Email address is required'}), 400
 
     try:
-        customer_id = insert_customer(name, full_email, country, website, remark, attachments)
+        customer_id = insert_customer(name, full_email, country, website, remark, attachments, company_name)
         return jsonify({
             'id': customer_id,
             'name': name,
@@ -1316,7 +1327,8 @@ def customers_endpoint():
             'country': country,
             'website': website,
             'remark': remark,
-            'attachments': attachments
+            'attachments': attachments,
+            'company_name': company_name
         }), 201
     except Exception as exc:
         return jsonify({'error': f'Database error: {str(exc)}'}), 500

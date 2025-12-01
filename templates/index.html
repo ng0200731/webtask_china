@@ -343,6 +343,15 @@
             gap: 4px;
         }
 
+        .attachment-filename {
+            word-break: break-all;
+            overflow-wrap: anywhere;
+        }
+
+        .attachment-size {
+            font-size: 11px;
+        }
+
         .preview-modal-content {
             width: 100%;
             height: 100%;
@@ -436,6 +445,30 @@
 
         .form-group {
             margin-bottom: 15px;
+        }
+
+        .customer-form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 15px 20px;
+        }
+
+        .customer-form-grid .form-group-full {
+            grid-column: 1 / -1;
+        }
+
+        .customer-form-grid .form-group-rich {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .customer-form-grid .form-group-rich #customer-remark {
+            flex: 1;
+        }
+
+        /* Ensure Create Customer area is clean white with even spacing */
+        #create-customer-content .settings-section {
+            background-color: #ffffff;
         }
 
         .form-group label {
@@ -1032,45 +1065,58 @@
             <div id="create-customer-content" class="hidden">
                 <div class="settings-section">
                     <h3 style="font-family: Arial, sans-serif; font-size: 18px; color: #000000; margin-bottom: 15px; border-bottom: 1px solid #000000; padding-bottom: 10px;">Create Customer</h3>
-                    <div class="form-group">
-                        <label for="customer-name">Customer Name</label>
-                        <input type="text" id="customer-name" placeholder="Enter customer name">
-                    </div>
-                    <div class="form-group">
-                        <label for="customer-email-address">Email Address</label>
-                        <input type="email" id="customer-email-address" placeholder="customer@example.com" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}">
-                    </div>
-                    <div class="form-group">
-                        <label for="customer-country">Country</label>
-                        <div style="position: relative;">
-                            <input type="text" id="customer-country" placeholder="Search or select country" autocomplete="off" oninput="filterCountries()" onfocus="showCountryDropdown()" onblur="setTimeout(() => hideCountryDropdown(), 200)">
-                            <div id="country-dropdown" class="country-dropdown hidden"></div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="customer-website">Website (Optional)</label>
-                        <input type="url" id="customer-website" placeholder="https://example.com (optional)">
-                    </div>
-                    <div class="form-group">
-                        <label>Attachments (Drag & Drop or Click to Select)</label>
-                        <div id="customer-attachment-area" class="attachment-drop-area" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" onclick="document.getElementById('customer-attachment-input').click()">
-                            <div class="attachment-drop-content">
-                                <div style="font-size: 24px; margin-bottom: 10px;">📎</div>
-                                <div>Drag and drop files here or click to select</div>
-                                <div style="font-size: 12px; color: #666; margin-top: 5px;">Multiple files supported</div>
+                    <div class="customer-form-grid">
+                        <!-- Row 1: Country | Company Name -->
+                        <div class="form-group">
+                            <label for="customer-country">Country</label>
+                            <div style="position: relative;">
+                                <input type="text" id="customer-country" placeholder="Search or select country" autocomplete="off" oninput="filterCountries()" onfocus="showCountryDropdown()" onblur="setTimeout(() => hideCountryDropdown(), 200)">
+                                <div id="country-dropdown" class="country-dropdown hidden"></div>
                             </div>
-                            <input type="file" id="customer-attachment-input" multiple style="display: none;" onchange="handleAttachmentSelect(event)">
                         </div>
-                        <div id="customer-attachment-list" class="attachment-list"></div>
-                    </div>
-                    <div class="form-group">
-                        <label for="customer-remark">Remark (Rich HTML)</label>
-                        <div id="customer-remark" contenteditable="true" style="min-height: 100px; border: 1px solid #000000; padding: 8px; font-family: Arial, sans-serif; font-size: 14px; background-color: #ffffff; overflow-y: auto;" data-placeholder="Enter remarks with HTML formatting..."></div>
-                        <div style="margin-top: 5px; font-size: 12px; color: #666;">
-                            <button type="button" onclick="formatText('bold')" style="padding: 3px 8px; margin-right: 5px; font-size: 11px;">Bold</button>
-                            <button type="button" onclick="formatText('italic')" style="padding: 3px 8px; margin-right: 5px; font-size: 11px;">Italic</button>
-                            <button type="button" onclick="formatText('underline')" style="padding: 3px 8px; margin-right: 5px; font-size: 11px;">Underline</button>
-                            <button type="button" onclick="formatText('insertUnorderedList')" style="padding: 3px 8px; margin-right: 5px; font-size: 11px;">List</button>
+                        <div class="form-group">
+                            <label for="company-name">Company Name</label>
+                            <input type="text" id="company-name" placeholder="Enter company name">
+                        </div>
+
+                        <!-- Row 2: Customer Name | Email -->
+                        <div class="form-group">
+                            <label for="customer-name">Customer Name</label>
+                            <input type="text" id="customer-name" placeholder="Enter customer name">
+                        </div>
+                        <div class="form-group">
+                            <label for="customer-email-address">Email</label>
+                            <input type="email" id="customer-email-address" placeholder="customer@example.com" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}">
+                        </div>
+
+                        <!-- Row 3: Web Site (full width) -->
+                        <div class="form-group form-group-full">
+                            <label for="customer-website">Web Site</label>
+                            <input type="url" id="customer-website" placeholder="https://example.com">
+                        </div>
+
+                        <!-- Row 4: Attachment | Remark (rich text) -->
+                        <div class="form-group">
+                            <label>Attachment</label>
+                            <div id="customer-attachment-area" class="attachment-drop-area" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" onclick="document.getElementById('customer-attachment-input').click()">
+                                <div class="attachment-drop-content">
+                                    <div style="font-size: 24px; margin-bottom: 10px;">📎</div>
+                                    <div>Drag and drop files here or click to select</div>
+                                    <div style="font-size: 12px; color: #666; margin-top: 5px;">Multiple files supported</div>
+                                </div>
+                                <input type="file" id="customer-attachment-input" multiple style="display: none;" onchange="handleAttachmentSelect(event)">
+                            </div>
+                            <div id="customer-attachment-list" class="attachment-list"></div>
+                        </div>
+                        <div class="form-group form-group-rich">
+                            <label for="customer-remark">Remark (Rich Text)</label>
+                            <div id="customer-remark" contenteditable="true" style="min-height: 120px; border: 1px solid #000000; padding: 8px; font-family: Arial, sans-serif; font-size: 14px; background-color: #ffffff; color: #000000; overflow-y: auto;" data-placeholder="Enter remarks with HTML formatting..."></div>
+                            <div style="margin-top: 5px; font-size: 12px; color: #666;">
+                                <button type="button" onclick="formatText('bold')" style="padding: 3px 8px; margin-right: 5px; font-size: 11px;">Bold</button>
+                                <button type="button" onclick="formatText('italic')" style="padding: 3px 8px; margin-right: 5px; font-size: 11px;">Italic</button>
+                                <button type="button" onclick="formatText('underline')" style="padding: 3px 8px; margin-right: 5px; font-size: 11px;">Underline</button>
+                                <button type="button" onclick="formatText('insertUnorderedList')" style="padding: 3px 8px; margin-right: 5px; font-size: 11px;">List</button>
+                            </div>
                         </div>
                     </div>
                     <div class="compose-actions">
@@ -4044,6 +4090,28 @@
             openPreviewModal(att.data || '', contentType, filename);
         }
 
+        function openCustomerAttachment(customerId, attachmentIndex) {
+            const customers = customerCache || [];
+            const customer = customers.find(c => c.id === customerId);
+            if (!customer || !customer.attachments) {
+                return;
+            }
+            let attachments;
+            try {
+                attachments = JSON.parse(customer.attachments) || [];
+            } catch (e) {
+                console.error('Error parsing customer attachments for preview:', e);
+                return;
+            }
+            const att = attachments[attachmentIndex];
+            if (!att) {
+                return;
+            }
+            const contentType = att.content_type || 'application/octet-stream';
+            const filename = att.filename || `Attachment ${attachmentIndex + 1}`;
+            openPreviewModal(att.data || '', contentType, filename);
+        }
+
         function openTaskAttachmentPreview(attachmentIndex) {
             if (!window.taskModalAttachments || !window.taskModalAttachments[attachmentIndex]) {
                 return;
@@ -4412,12 +4480,14 @@
 
         function saveCustomer() {
             const nameInput = document.getElementById('customer-name');
+            const companyInput = document.getElementById('company-name');
             const emailInput = document.getElementById('customer-email-address');
             const countryInput = document.getElementById('customer-country');
             const websiteInput = document.getElementById('customer-website');
             const remarkDiv = document.getElementById('customer-remark');
             
             const name = (nameInput.value || '').trim();
+            const companyName = (companyInput && companyInput.value || '').trim();
             const emailAddress = (emailInput.value || '').trim();
             const country = (countryInput.value || '').trim();
             const website = (websiteInput.value || '').trim();
@@ -4458,7 +4528,8 @@
                     country: country || null,
                     website: website && website.trim() !== '' ? website : null,
                     remark: remark || null,
-                    attachments: customerAttachments.length > 0 ? JSON.stringify(customerAttachments) : null
+                    attachments: customerAttachments.length > 0 ? JSON.stringify(customerAttachments) : null,
+                    company_name: companyName || null
                 })
             })
                 .then(async response => {
@@ -4467,6 +4538,7 @@
                         throw new Error(data.error || 'Failed to save customer');
                     }
                     nameInput.value = '';
+                    if (companyInput) companyInput.value = '';
                     emailInput.value = '';
                     if (countryInput) countryInput.value = '';
                     if (websiteInput) websiteInput.value = '';
@@ -4555,9 +4627,28 @@
                         const attachments = JSON.parse(customer.attachments);
                         if (Array.isArray(attachments) && attachments.length > 0) {
                             attachmentsHtml = attachments.map((att, idx) => {
+                                const filename = att.filename || 'attachment';
+                                const safeFilename = escapeHtml(filename);
                                 const sizeStr = formatAttachmentSize(att.size || 0);
-                                const dataUrl = `data:${att.content_type || 'application/octet-stream'};base64,${att.data}`;
-                                return `<a href="${dataUrl}" download="${escapeHtml(att.filename || 'attachment')}" style="display: block; margin-bottom: 3px; color: #0066cc; text-decoration: underline; font-size: 11px;">📎 ${escapeHtml(att.filename || 'attachment')} (${sizeStr})</a>`;
+                                const contentType = att.content_type || 'application/octet-stream';
+                                const dataUrl = `data:${contentType};base64,${att.data}`;
+                                const isImage = isImageContent(att.filename, contentType);
+                                const isPDF = isPDFContent(att.filename, contentType);
+                                const isText = isTextContent(att.filename, contentType);
+                                const isViewable = Boolean(isImage || isPDF || isText);
+
+                                const labelHtml = `
+                                    <div class="attachment-filename">📎 ${safeFilename}</div>
+                                    <div class="attachment-size">${sizeStr}</div>
+                                `;
+
+                                const viewHtml = isViewable
+                                    ? `<div class="attachment-view-link" onclick="openCustomerAttachment(${customer.id}, ${idx})" style="font-size: 11px;">${labelHtml}</div>`
+                                    : `<div style="font-size: 11px;">${labelHtml}</div>`;
+
+                                const downloadLink = `<a class="attachment-download-link" href="${dataUrl}" download="${escapeHtml(att.filename || 'attachment')}" style="margin-left: 4px; font-size: 14px; text-decoration: none;" title="Download ${safeFilename}">⬇</a>`;
+
+                                return `<div class="task-attachment-entry">${viewHtml}${downloadLink}</div>`;
                             }).join('');
                         }
                     }
