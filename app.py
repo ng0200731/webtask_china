@@ -20,7 +20,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 app = Flask(__name__)
-app.config['VERSION'] = '1.0.56'
+app.config['VERSION'] = '1.0.61'
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Default email configurations (can be overridden via settings)
@@ -187,6 +187,27 @@ def initialize_database():
             DELETE FROM oauth_states 
             WHERE datetime(created_at) < datetime('now', '-10 minutes')
         """)
+        # Task types table for dropdown options
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS task_types (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                display_order INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        # Initialize default task types if table is empty
+        cursor.execute("SELECT COUNT(*) as count FROM task_types")
+        if cursor.fetchone()['count'] == 0:
+            default_types = [
+                ('need sample', 1),
+                ('quotation', 2),
+                ('outsource', 3)
+            ]
+            cursor.executemany("""
+                INSERT INTO task_types (name, display_order) VALUES (?, ?)
+            """, default_types)
+        
         # Tasks table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
@@ -1533,6 +1554,120 @@ def delete_task(task_id):
             return jsonify({'error': 'Task not found'}), 404
     except Exception as exc:
         return jsonify({'error': f'Database error: {str(exc)}'}), 500
+
+
+@app.route('/api/task-types', methods=['GET', 'POST'])
+def handle_task_types():
+    """Handle task type retrieval and creation"""
+    if request.method == 'GET':
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            cursor.execute("SELECT id, name, display_order, created_at FROM task_types ORDER BY display_order, name")
+            types = [dict(row) for row in cursor.fetchall()]
+            cursor.close()
+            connection.close()
+            return jsonify(types)
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            name = data.get('name', '').strip()
+            if not name:
+                return jsonify({'error': 'Task type name is required'}), 400
+            
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            
+            # Check if name already exists
+            cursor.execute("SELECT id FROM task_types WHERE name = ?", (name,))
+            if cursor.fetchone():
+                cursor.close()
+                connection.close()
+                return jsonify({'error': 'Task type with this name already exists'}), 400
+            
+            # Get max display_order
+            cursor.execute("SELECT MAX(display_order) as max_order FROM task_types")
+            max_order = cursor.fetchone()['max_order'] or 0
+            display_order = data.get('display_order', max_order + 1)
+            
+            cursor.execute("""
+                INSERT INTO task_types (name, display_order) VALUES (?, ?)
+            """, (name, display_order))
+            connection.commit()
+            task_type_id = cursor.lastrowid
+            cursor.close()
+            connection.close()
+            
+            return jsonify({
+                'id': task_type_id,
+                'name': name,
+                'display_order': display_order,
+                'status': 'created'
+            }), 201
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+
+
+@app.route('/api/task-types/<int:type_id>', methods=['PUT', 'DELETE'])
+def handle_task_type(type_id):
+    """Handle task type update and deletion"""
+    if request.method == 'PUT':
+        try:
+            data = request.get_json()
+            name = data.get('name', '').strip()
+            if not name:
+                return jsonify({'error': 'Task type name is required'}), 400
+            
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            
+            # Check if name already exists for another type
+            cursor.execute("SELECT id FROM task_types WHERE name = ? AND id != ?", (name, type_id))
+            if cursor.fetchone():
+                cursor.close()
+                connection.close()
+                return jsonify({'error': 'Task type with this name already exists'}), 400
+            
+            display_order = data.get('display_order', 0)
+            cursor.execute("""
+                UPDATE task_types SET name = ?, display_order = ? WHERE id = ?
+            """, (name, display_order, type_id))
+            connection.commit()
+            updated = cursor.rowcount > 0
+            cursor.close()
+            connection.close()
+            
+            if updated:
+                return jsonify({
+                    'id': type_id,
+                    'name': name,
+                    'display_order': display_order,
+                    'status': 'updated'
+                })
+            else:
+                return jsonify({'error': 'Task type not found'}), 404
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+    
+    elif request.method == 'DELETE':
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM task_types WHERE id = ?", (type_id,))
+            connection.commit()
+            deleted = cursor.rowcount > 0
+            cursor.close()
+            connection.close()
+            
+            if deleted:
+                return jsonify({'status': 'deleted', 'id': type_id})
+            else:
+                return jsonify({'error': 'Task type not found'}), 404
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
 
 
 initialize_database()

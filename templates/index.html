@@ -352,19 +352,73 @@
             font-size: 11px;
         }
 
+        .task-type-row {
+            cursor: move;
+        }
+
+        .task-type-row.drag-over {
+            background-color: #f0f0f0;
+        }
+
+        .task-type-handle {
+            width: 50px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            user-select: none;
+            color: #000000;
+        }
+
+        .task-type-handle-icon {
+            font-size: 16px;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .task-type-seq {
+            font-size: 12px;
+        }
+
         .autocomplete-wrapper {
             position: relative;
             width: 100%;
+            display: flex;
+            align-items: stretch;
         }
 
         .autocomplete-input {
-            width: 100%;
+            flex: 1;
             padding: 8px;
             border: 1px solid #000000;
+            border-right: none;
             background-color: #ffffff;
             color: #000000;
             font-family: Arial, sans-serif;
             font-size: 14px;
+        }
+
+        .autocomplete-dropdown-btn {
+            width: 30px;
+            padding: 8px;
+            border: 1px solid #000000;
+            background-color: #ffffff;
+            color: #000000;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            user-select: none;
+        }
+
+        .autocomplete-dropdown-btn:hover {
+            background-color: #f0f0f0;
+        }
+
+        .autocomplete-dropdown-btn::after {
+            content: '▼';
         }
 
         .autocomplete-dropdown {
@@ -1099,6 +1153,10 @@
                 <span class="label-short">TL</span>
                 <span class="label-full">Task List</span>
             </button>
+            <button class="menu-button" onclick="showDropdownList()">
+                <span class="label-short">D</span>
+                <span class="label-full">Dropdown List</span>
+            </button>
             <button class="menu-button" onclick="showSettings()">
                 <span class="label-short">S</span>
                 <span class="label-full">Settings</span>
@@ -1249,6 +1307,18 @@
             </div>
             <div id="task-list-content" class="hidden">
                 <div id="task-list-container"></div>
+            </div>
+            <div id="dropdown-list-content" class="hidden">
+                <div>
+                    <h3 style="margin-bottom: 15px;">Manage Task Type Dropdown</h3>
+                    <div style="margin-bottom: 20px;">
+                        <input type="text" id="new-task-type-input" placeholder="Enter new task type name" style="width: 300px; padding: 8px; border: 1px solid #000000; margin-right: 10px;" onkeypress="if(event.key === 'Enter') addTaskType()">
+                        <button class="form-button" onclick="addTaskType()" style="padding: 8px 20px;">Add New Type</button>
+                    </div>
+                    <div id="task-types-list" style="border: 1px solid #000000; padding: 15px; background-color: #ffffff;">
+                        <div style="text-align: center; padding: 20px; color: #666;">Loading task types...</div>
+                    </div>
+                </div>
             </div>
             <div id="settings-content" class="hidden">
                 <div id="profile-list-view" class="profile-list-view">
@@ -1674,6 +1744,7 @@
                         <label for="task-customer-select">Selected Customer</label>
                         <div class="autocomplete-wrapper">
                             <input type="text" id="task-customer-select" class="autocomplete-input" placeholder="Type to search customer..." autocomplete="off">
+                            <div class="autocomplete-dropdown-btn" id="task-customer-dropdown-btn"></div>
                             <div id="task-customer-dropdown" class="autocomplete-dropdown"></div>
                         </div>
                         <input type="hidden" id="task-customer-value" value="">
@@ -1686,9 +1757,6 @@
                 <div class="form-group">
                     <label for="task-catalogue">Type</label>
                     <select id="task-catalogue">
-                        <option value="need sample">need sample</option>
-                        <option value="quotation">quotation</option>
-                        <option value="outsource">outsource</option>
                     </select>
                 </div>
                 <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
@@ -1797,17 +1865,22 @@
             const dropdown = document.getElementById(dropdownId);
             const valueInput = document.getElementById(valueInputId);
             const emailInput = emailInputId ? document.getElementById(emailInputId) : null;
+            // Find dropdown button - it's a sibling of the input
+            const wrapper = input ? input.closest('.autocomplete-wrapper') : null;
+            const dropdownBtn = wrapper ? wrapper.querySelector('.autocomplete-dropdown-btn') : null;
             
             if (!input || !dropdown || !valueInput) return;
             
             let highlightedIndex = -1;
             let filteredCustomers = [];
+            let showingAllCustomers = false;
             
             function selectCustomer(customer) {
                 input.value = customer.name || customer.email_suffix || '';
                 valueInput.value = customer.email_suffix || '';
                 dropdown.classList.remove('show');
                 highlightedIndex = -1;
+                showingAllCustomers = false;
                 
                 if (emailInput) {
                     const storedEmail = (customer.email_suffix || '').trim();
@@ -1821,9 +1894,46 @@
                 }
             }
             
+            function showAllCustomers() {
+                if (!customerCache || customerCache.length === 0) return;
+                filteredCustomers = customerCache;
+                showingAllCustomers = true;
+                renderAutocompleteDropdown(dropdown, filteredCustomers, selectCustomer);
+                highlightedIndex = -1;
+            }
+            
+            // Dropdown button click - show all customers
+            if (dropdownBtn) {
+                dropdownBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (dropdown.classList.contains('show') && showingAllCustomers) {
+                        dropdown.classList.remove('show');
+                    } else {
+                        showAllCustomers();
+                    }
+                });
+            }
+            
+            // Input focus - show all customers if empty, or filter if has text
+            input.addEventListener('focus', (e) => {
+                const query = e.target.value.trim();
+                if (query === '') {
+                    showAllCustomers();
+                } else {
+                    filteredCustomers = filterCustomers(query);
+                    renderAutocompleteDropdown(dropdown, filteredCustomers, selectCustomer);
+                }
+            });
+            
             input.addEventListener('input', (e) => {
                 const query = e.target.value.trim();
-                filteredCustomers = filterCustomers(query);
+                showingAllCustomers = false;
+                if (query === '') {
+                    filteredCustomers = customerCache || [];
+                } else {
+                    filteredCustomers = filterCustomers(query);
+                }
                 renderAutocompleteDropdown(dropdown, filteredCustomers, selectCustomer);
                 highlightedIndex = -1;
             });
@@ -1831,8 +1941,10 @@
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'ArrowDown') {
                     e.preventDefault();
-                    highlightedIndex = Math.min(highlightedIndex + 1, filteredCustomers.length - 1);
-                    updateHighlight();
+                    if (filteredCustomers.length > 0) {
+                        highlightedIndex = Math.min(highlightedIndex + 1, filteredCustomers.length - 1);
+                        updateHighlight();
+                    }
                 } else if (e.key === 'ArrowUp') {
                     e.preventDefault();
                     highlightedIndex = Math.max(highlightedIndex - 1, -1);
@@ -1862,7 +1974,7 @@
             
             // Close dropdown when clicking outside
             document.addEventListener('click', (e) => {
-                if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                if (!input.contains(e.target) && !dropdown.contains(e.target) && (!dropdownBtn || !dropdownBtn.contains(e.target))) {
                     dropdown.classList.remove('show');
                 }
             });
@@ -2670,16 +2782,32 @@
             document.getElementById('task-content').classList.remove('hidden');
             document.getElementById('task-list-content').classList.add('hidden');
             document.getElementById('settings-content').classList.add('hidden');
+            document.getElementById('dropdown-list-content').classList.add('hidden');
             document.getElementById('content-title').textContent = 'Task';
             document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
             if (event && event.target) {
             event.target.classList.add('active');
             }
             loadTaskDisplay();
+            loadTaskTypesForDropdown();
         }
 
         function loadTaskDisplay() {
             const container = document.getElementById('task-display-container');
+            if (!container) return;
+            
+            // Load customers if not cached
+            if (!customerCache || customerCache.length === 0) {
+                loadCustomers(false).then(() => {
+                    renderTaskForm(container);
+                });
+            } else {
+                renderTaskForm(container);
+            }
+        }
+
+        function loadTaskDisplayForDropdown() {
+            const container = document.getElementById('task-display-container-dropdown');
             if (!container) return;
             
             // Load customers if not cached
@@ -2705,6 +2833,7 @@
                                 <label style="display: block; margin-bottom: 5px; font-weight: bold;">Selected Customer</label>
                                 <div class="autocomplete-wrapper">
                                     <input type="text" id="task-form-customer" class="autocomplete-input" placeholder="Type to search customer..." autocomplete="off" required>
+                                    <div class="autocomplete-dropdown-btn" id="task-form-customer-dropdown-btn"></div>
                                     <div id="task-form-customer-dropdown" class="autocomplete-dropdown"></div>
                                 </div>
                                 <input type="hidden" id="task-form-customer-value" value="">
@@ -2718,9 +2847,6 @@
                             <label style="display: block; margin-bottom: 5px; font-weight: bold;">Type</label>
                             <select id="task-form-catalogue" required style="width: 100%; padding: 8px; border: 1px solid #000000;">
                                 <option value="">-- Select Type --</option>
-                                <option value="need sample">need sample</option>
-                                <option value="quotation">quotation</option>
-                                <option value="outsource">outsource</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom: 15px;">
@@ -2749,6 +2875,9 @@
             setTimeout(() => {
                 setupAutocomplete('task-form-customer', 'task-form-customer-dropdown', 'task-form-customer-value', 'task-form-email');
             }, 50);
+            
+            // Load task types
+            loadTaskTypesForDropdown();
             
             // Initialize Quill editor for task form (after DOM is ready)
             setTimeout(() => {
@@ -3042,18 +3171,298 @@
             });
         }
 
+        function showDropdownList() {
+            document.getElementById('receive-mail-content').classList.add('hidden');
+            document.getElementById('task-content').classList.add('hidden');
+            document.getElementById('settings-content').classList.add('hidden');
+            document.getElementById('send-mail-content').classList.add('hidden');
+            document.getElementById('create-customer-content').classList.add('hidden');
+            document.getElementById('task-list-content').classList.add('hidden');
+            document.getElementById('dropdown-list-content').classList.remove('hidden');
+            document.getElementById('content-title').textContent = 'Dropdown List';
+            document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+            // Load task types list
+            loadTaskTypes();
+        }
+
         function showSettings() {
             document.getElementById('receive-mail-content').classList.add('hidden');
             document.getElementById('task-content').classList.add('hidden');
             document.getElementById('settings-content').classList.remove('hidden');
             document.getElementById('send-mail-content').classList.add('hidden');
             document.getElementById('create-customer-content').classList.add('hidden');
+            document.getElementById('dropdown-list-content').classList.add('hidden');
+            document.getElementById('task-list-content').classList.add('hidden');
             document.getElementById('content-title').textContent = 'Settings';
             document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
             if (event && event.target) {
             event.target.classList.add('active');
             }
             showProfileList();
+        }
+
+        // Task Types Management Functions
+        let taskTypesCache = [];
+
+        function loadTaskTypes() {
+            fetch('/api/task-types')
+                .then(response => response.json())
+                .then(types => {
+                    taskTypesCache = types;
+                    renderTaskTypesList(types);
+                    updateTaskTypeDropdowns(types);
+                })
+                .catch(error => {
+                    console.error('Error loading task types:', error);
+                    document.getElementById('task-types-list').innerHTML = '<div style="padding: 20px; color: #dc3545;">Error loading task types</div>';
+                });
+        }
+
+        let currentTaskTypeDragId = null;
+
+        function renderTaskTypesList(types) {
+            const container = document.getElementById('task-types-list');
+            if (!container) return;
+            
+            if (!types || types.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">No task types found. Add one above.</div>';
+                return;
+            }
+            
+            // Sort by display_order
+            const sortedTypes = [...types].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            
+            container.innerHTML = sortedTypes.map((type, index) => `
+                <div class="task-type-row" draggable="true"
+                     data-type-id="${type.id}"
+                     ondragstart="onTaskTypeDragStart(event, ${type.id})"
+                     ondragover="onTaskTypeDragOver(event, ${type.id})"
+                     ondrop="onTaskTypeDrop(event, ${type.id})"
+                     ondragend="onTaskTypeDragEnd(event)"
+                     style="display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #f0f0f0;">
+                    <div class="task-type-handle">
+                        <div class="task-type-handle-icon">≡</div>
+                        <div class="task-type-seq">#${index + 1}</div>
+                    </div>
+                    <div style="flex: 1;">
+                        <input type="text" value="${escapeHtml(type.name)}" 
+                               id="task-type-name-${type.id}" 
+                               style="width: 100%; padding: 5px; border: 1px solid #000000; font-size: 14px;"
+                               onblur="updateTaskType(${type.id})">
+                    </div>
+                    <div style="margin-left: 15px; display: flex; gap: 5px;">
+                        <button class="form-button" onclick="updateTaskType(${type.id})" style="padding: 5px 15px; font-size: 12px;">Save</button>
+                        <button class="form-button" onclick="deleteTaskType(${type.id})" style="padding: 5px 15px; font-size: 12px; background-color: #dc3545; color: white;">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addTaskType() {
+            const input = document.getElementById('new-task-type-input');
+            const name = input.value.trim();
+            
+            if (!name) {
+                alert('Please enter a task type name');
+                return;
+            }
+            
+            fetch('/api/task-types', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: name })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    input.value = '';
+                    loadTaskTypes();
+                }
+            })
+            .catch(error => {
+                alert('Error adding task type: ' + error.message);
+            });
+        }
+
+        function updateTaskType(typeId) {
+            const nameInput = document.getElementById(`task-type-name-${typeId}`);
+            const name = nameInput.value.trim();
+            
+            if (!name) {
+                alert('Task type name cannot be empty');
+                loadTaskTypes(); // Reload to reset
+                return;
+            }
+            
+            // Find current type to preserve display_order
+            const currentType = taskTypesCache.find(t => t.id === typeId);
+            const displayOrder = currentType ? (currentType.display_order || 0) : 0;
+            
+            fetch(`/api/task-types/${typeId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: name, display_order: displayOrder })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    loadTaskTypes(); // Reload to reset
+                } else {
+                    loadTaskTypes();
+                }
+            })
+            .catch(error => {
+                alert('Error updating task type: ' + error.message);
+                loadTaskTypes(); // Reload to reset
+            });
+        }
+
+        function deleteTaskType(typeId) {
+            if (!confirm('Are you sure you want to delete this task type?')) {
+                return;
+            }
+            
+            fetch(`/api/task-types/${typeId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    loadTaskTypes();
+                }
+            })
+            .catch(error => {
+                alert('Error deleting task type: ' + error.message);
+            });
+        }
+
+        function onTaskTypeDragStart(event, typeId) {
+            currentTaskTypeDragId = typeId;
+            event.dataTransfer.effectAllowed = 'move';
+        }
+
+        function onTaskTypeDragOver(event, typeId) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            const row = event.currentTarget;
+            row.classList.add('drag-over');
+        }
+
+        function onTaskTypeDragEnd(event) {
+            document.querySelectorAll('.task-type-row.drag-over').forEach(row => {
+                row.classList.remove('drag-over');
+            });
+        }
+
+        function onTaskTypeDrop(event, targetTypeId) {
+            event.preventDefault();
+            const targetRow = event.currentTarget;
+            targetRow.classList.remove('drag-over');
+            
+            if (!currentTaskTypeDragId || currentTaskTypeDragId === targetTypeId) {
+                currentTaskTypeDragId = null;
+                return;
+            }
+            
+            // Reorder in memory
+            const sortedTypes = [...taskTypesCache].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            const fromIndex = sortedTypes.findIndex(t => t.id === currentTaskTypeDragId);
+            const toIndex = sortedTypes.findIndex(t => t.id === targetTypeId);
+            
+            if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+                currentTaskTypeDragId = null;
+                return;
+            }
+            
+            const [moved] = sortedTypes.splice(fromIndex, 1);
+            sortedTypes.splice(toIndex, 0, moved);
+            
+            // Re-assign display_order sequentially
+            sortedTypes.forEach((type, index) => {
+                type.display_order = index + 1;
+            });
+            
+            // Persist all updated orders
+            Promise.all(sortedTypes.map(type => 
+                fetch(`/api/task-types/${type.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: type.name,
+                        display_order: type.display_order
+                    })
+                })
+            ))
+            .then(responses => Promise.all(responses.map(r => r.json())))
+            .then(results => {
+                if (results.some(r => r.error)) {
+                    alert('Error updating order');
+                } else {
+                    loadTaskTypes();
+                }
+            })
+            .catch(error => {
+                alert('Error reordering task types: ' + error.message);
+            })
+            .finally(() => {
+                currentTaskTypeDragId = null;
+            });
+        }
+
+        function loadTaskTypesForDropdown() {
+            if (taskTypesCache && taskTypesCache.length > 0) {
+                updateTaskTypeDropdowns(taskTypesCache);
+            } else {
+                fetch('/api/task-types')
+                    .then(response => response.json())
+                    .then(types => {
+                        taskTypesCache = types;
+                        updateTaskTypeDropdowns(types);
+                    })
+                    .catch(error => {
+                        console.error('Error loading task types:', error);
+                    });
+            }
+        }
+
+        function updateTaskTypeDropdowns(types) {
+            // Sort by display_order
+            const sortedTypes = [...types].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            
+            // Update task form dropdown
+            const taskFormCatalogue = document.getElementById('task-form-catalogue');
+            if (taskFormCatalogue) {
+                const currentValue = taskFormCatalogue.value;
+                taskFormCatalogue.innerHTML = '<option value="">-- Select Type --</option>' + 
+                    sortedTypes.map(type => `<option value="${escapeHtml(type.name)}">${escapeHtml(type.name)}</option>`).join('');
+                if (currentValue) {
+                    taskFormCatalogue.value = currentValue;
+                }
+            }
+            
+            // Update task modal dropdown
+            const taskCatalogueSelect = document.getElementById('task-catalogue');
+            if (taskCatalogueSelect) {
+                const currentValue = taskCatalogueSelect.value;
+                taskCatalogueSelect.innerHTML = sortedTypes.map(type => 
+                    `<option value="${escapeHtml(type.name)}">${escapeHtml(type.name)}</option>`
+                ).join('');
+                if (currentValue) {
+                    taskCatalogueSelect.value = currentValue;
+                }
+            }
         }
 
 
@@ -3862,8 +4271,16 @@
                 populateCustomerAutocomplete();
             }
 
+            // Load task types for dropdown
+            loadTaskTypesForDropdown();
+
             taskSequenceInput.value = email.sequence || 'N/A';
-            taskCatalogueSelect.value = 'need sample';
+            // Set default value after types are loaded
+            setTimeout(() => {
+                if (taskTypesCache && taskTypesCache.length > 0) {
+                    taskCatalogueSelect.value = taskTypesCache[0].name || '';
+                }
+            }, 100);
             
             // Clear rich text editor
             if (taskNotesEditor) {
@@ -4033,6 +4450,7 @@
             document.getElementById('task-content').classList.add('hidden');
             document.getElementById('task-list-content').classList.remove('hidden');
             document.getElementById('settings-content').classList.add('hidden');
+            document.getElementById('dropdown-list-content').classList.add('hidden');
             document.getElementById('content-title').textContent = 'Task List';
             document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
             if (event && event.target) {
