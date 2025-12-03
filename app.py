@@ -110,6 +110,10 @@ def initialize_database():
                 remark TEXT,
                 attachments TEXT,
                 company_name TEXT,
+                tel TEXT,
+                source TEXT,
+                address TEXT,
+                business_type TEXT,
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
@@ -140,6 +144,14 @@ def initialize_database():
             pass  # Column already exists
         try:
             cursor.execute("ALTER TABLE customers ADD COLUMN source TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        try:
+            cursor.execute("ALTER TABLE customers ADD COLUMN address TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        try:
+            cursor.execute("ALTER TABLE customers ADD COLUMN business_type TEXT")
         except sqlite3.OperationalError:
             pass  # Column already exists
         cursor.execute("""
@@ -268,6 +280,27 @@ def initialize_database():
             cursor.executemany("""
                 INSERT INTO customer_sources (name, display_order) VALUES (?, ?)
             """, default_sources)
+        
+        # Customer business types table for dropdown options
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS customer_business_types (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            display_order INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+        """)
+        # Initialize default customer business types if table is empty
+        cursor.execute("SELECT COUNT(*) as count FROM customer_business_types")
+        if cursor.fetchone()['count'] == 0:
+            default_business_types = [
+                ('Buyer', 1),
+                ('Agent', 2),
+                ('Garment Factory', 3)
+            ]
+            cursor.executemany("""
+            INSERT INTO customer_business_types (name, display_order) VALUES (?, ?)
+            """, default_business_types)
         
         # Initialize or update countries list
         default_countries = [
@@ -480,12 +513,12 @@ def initialize_database():
             connection.close()
 
 
-def insert_customer(name: str, email_suffix: str, country: str = None, website: str = None, remark: str = None, attachments: str = None, company_name: str = None, tel: str = None, source: str = None) -> int:
+def insert_customer(name: str, email_suffix: str, country: str = None, website: str = None, remark: str = None, attachments: str = None, company_name: str = None, tel: str = None, source: str = None, address: str = None, business_type: str = None) -> int:
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute(
-        "INSERT INTO customers (name, email_suffix, country, website, remark, attachments, company_name, tel, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (name, email_suffix, country, website, remark, attachments, company_name, tel, source)
+        "INSERT INTO customers (name, email_suffix, country, website, remark, attachments, company_name, tel, source, address, business_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (name, email_suffix, country, website, remark, attachments, company_name, tel, source, address, business_type)
     )
     connection.commit()
     customer_id = cursor.lastrowid
@@ -498,7 +531,7 @@ def fetch_customers():
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute("""
-        SELECT id, name, email_suffix, country, website, remark, attachments, company_name, tel, source, created_at
+        SELECT id, name, email_suffix, country, website, remark, attachments, company_name, tel, source, address, business_type, created_at
         FROM customers
         ORDER BY datetime(created_at) DESC
     """)
@@ -549,6 +582,14 @@ def fetch_customers():
             source = row['source'] if row['source'] else None
         except (KeyError, IndexError):
             source = None
+        try:
+            address = row['address'] if row['address'] else None
+        except (KeyError, IndexError):
+            address = None
+        try:
+            business_type = row['business_type'] if row['business_type'] else None
+        except (KeyError, IndexError):
+            business_type = None
 
         customers.append({
             'id': row['id'],
@@ -561,6 +602,8 @@ def fetch_customers():
             'attachments': attachments,
             'company_name': company_name,
             'tel': tel,
+            'address': address,
+            'business_type': business_type,
             'created_at': created_at
         })
     return customers
@@ -1573,6 +1616,8 @@ def customers_endpoint():
     country = (data.get('country') or '').strip() or None
     website = (data.get('website') or '').strip() or None
     source = (data.get('source') or '').strip() or None
+    address = (data.get('address') or '').strip() or None
+    business_type = (data.get('business_type') or '').strip() or None
     remark = (data.get('remark') or '').strip() or None
     attachments = data.get('attachments') or None
     company_name = (data.get('company_name') or '').strip() or None
@@ -1603,7 +1648,7 @@ def customers_endpoint():
         return jsonify({'error': 'Email address is required'}), 400
 
     try:
-        customer_id = insert_customer(name, full_email, country, website, remark, attachments, company_name, tel, source)
+        customer_id = insert_customer(name, full_email, country, website, remark, attachments, company_name, tel, source, address, business_type)
         return jsonify({
             'id': customer_id,
             'name': name,
@@ -1614,7 +1659,9 @@ def customers_endpoint():
             'source': source,
             'remark': remark,
             'attachments': attachments,
-            'company_name': company_name
+            'company_name': company_name,
+            'address': address,
+            'business_type': business_type
         }), 201
     except Exception as exc:
         return jsonify({'error': f'Database error: {str(exc)}'}), 500
@@ -1635,6 +1682,8 @@ def update_or_delete_customer(customer_id):
             attachments = data.get('attachments') or None
             company_name = (data.get('company_name') or '').strip() or None
             tel = (data.get('tel') or '').strip() or None
+            address = (data.get('address') or '').strip() or None
+            business_type = (data.get('business_type') or '').strip() or None
             
             if not name:
                 return jsonify({'error': 'Customer name is required'}), 400
@@ -1651,9 +1700,9 @@ def update_or_delete_customer(customer_id):
             cursor = connection.cursor()
             cursor.execute("""
                 UPDATE customers 
-                SET name = ?, email_suffix = ?, country = ?, website = ?, source = ?, remark = ?, attachments = ?, company_name = ?, tel = ?
+                SET name = ?, email_suffix = ?, country = ?, website = ?, source = ?, remark = ?, attachments = ?, company_name = ?, tel = ?, address = ?, business_type = ?
                 WHERE id = ?
-            """, (name, full_email, country, website, source, remark, attachments, company_name, tel, customer_id))
+            """, (name, full_email, country, website, source, remark, attachments, company_name, tel, address, business_type, customer_id))
             connection.commit()
             updated = cursor.rowcount > 0
             cursor.close()
@@ -1671,6 +1720,8 @@ def update_or_delete_customer(customer_id):
                     'remark': remark,
                     'attachments': attachments,
                     'company_name': company_name,
+                    'address': address,
+                    'business_type': business_type,
                     'status': 'updated'
                 })
             else:
@@ -1795,7 +1846,8 @@ def handle_tasks():
                     t.deadline,
                     t.created_at,
                     t.updated_at,
-                    c.company_name
+                    c.company_name,
+                    c.source AS customer_source
                 FROM tasks t
                 LEFT JOIN customers c ON (c.name = t.customer OR c.email_suffix = t.email)
                 ORDER BY datetime(t.created_at) DESC
@@ -1823,7 +1875,8 @@ def handle_tasks():
                     'deadline': row['deadline'],
                     'created_at': row['created_at'],
                     'updated_at': row['updated_at'],
-                    'company_name': row['company_name']
+                    'company_name': row['company_name'],
+                    'source': row['customer_source']
                 })
             
             return jsonify({'tasks': tasks})
@@ -2298,6 +2351,120 @@ def handle_customer_source(source_id):
                 return jsonify({'status': 'deleted', 'id': source_id})
             else:
                 return jsonify({'error': 'Customer source not found'}), 404
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+
+
+@app.route('/api/customer-business-types', methods=['GET', 'POST'])
+def handle_customer_business_types():
+    """Handle customer business type retrieval and creation"""
+    if request.method == 'GET':
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            cursor.execute("SELECT id, name, display_order, created_at FROM customer_business_types ORDER BY display_order, name")
+            types = [dict(row) for row in cursor.fetchall()]
+            cursor.close()
+            connection.close()
+            return jsonify(types)
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            name = data.get('name', '').strip()
+            if not name:
+                return jsonify({'error': 'Customer business type name is required'}), 400
+            
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            
+            # Check if name already exists
+            cursor.execute("SELECT id FROM customer_business_types WHERE name = ?", (name,))
+            if cursor.fetchone():
+                cursor.close()
+                connection.close()
+                return jsonify({'error': 'Customer business type with this name already exists'}), 400
+            
+            # Get max display_order
+            cursor.execute("SELECT MAX(display_order) as max_order FROM customer_business_types")
+            max_order = cursor.fetchone()['max_order'] or 0
+            display_order = data.get('display_order', max_order + 1)
+            
+            cursor.execute("""
+                INSERT INTO customer_business_types (name, display_order) VALUES (?, ?)
+            """, (name, display_order))
+            connection.commit()
+            type_id = cursor.lastrowid
+            cursor.close()
+            connection.close()
+            
+            return jsonify({
+                'id': type_id,
+                'name': name,
+                'display_order': display_order,
+                'status': 'created'
+            }), 201
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+
+
+@app.route('/api/customer-business-types/<int:type_id>', methods=['PUT', 'DELETE'])
+def handle_customer_business_type(type_id):
+    """Handle customer business type update and deletion"""
+    if request.method == 'PUT':
+        try:
+            data = request.get_json()
+            name = data.get('name', '').strip()
+            if not name:
+                return jsonify({'error': 'Customer business type name is required'}), 400
+            
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            
+            # Check if name already exists for another type
+            cursor.execute("SELECT id FROM customer_business_types WHERE name = ? AND id != ?", (name, type_id))
+            if cursor.fetchone():
+                cursor.close()
+                connection.close()
+                return jsonify({'error': 'Customer business type with this name already exists'}), 400
+            
+            display_order = data.get('display_order', 0)
+            cursor.execute("""
+                UPDATE customer_business_types SET name = ?, display_order = ? WHERE id = ?
+            """, (name, display_order, type_id))
+            connection.commit()
+            updated = cursor.rowcount > 0
+            cursor.close()
+            connection.close()
+            
+            if updated:
+                return jsonify({
+                    'id': type_id,
+                    'name': name,
+                    'display_order': display_order,
+                    'status': 'updated'
+                })
+            else:
+                return jsonify({'error': 'Customer business type not found'}), 404
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+    
+    elif request.method == 'DELETE':
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM customer_business_types WHERE id = ?", (type_id,))
+            connection.commit()
+            deleted = cursor.rowcount > 0
+            cursor.close()
+            connection.close()
+            
+            if deleted:
+                return jsonify({'status': 'deleted', 'id': type_id})
+            else:
+                return jsonify({'error': 'Customer business type not found'}), 404
         except Exception as exc:
             return jsonify({'error': f'Database error: {str(exc)}'}), 500
 

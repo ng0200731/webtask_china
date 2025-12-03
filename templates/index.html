@@ -1279,7 +1279,7 @@
                 <div class="settings-section">
                     <h3 style="font-family: Arial, sans-serif; font-size: 18px; color: #000000; margin-bottom: 15px; border-bottom: 1px solid #000000; padding-bottom: 10px;">Create Customer</h3>
                     <div class="customer-form-grid">
-                        <!-- Row 1: Country | Company Name -->
+                        <!-- Row 1: Country | Company Name | Company Address -->
                         <div class="form-group">
                             <label for="customer-country">Country</label>
                             <div style="position: relative;">
@@ -1290,6 +1290,10 @@
                         <div class="form-group">
                             <label for="company-name">Company Name</label>
                             <input type="text" id="company-name" placeholder="Enter company name">
+                        </div>
+                        <div class="form-group">
+                            <label for="company-address">Company Address</label>
+                            <input type="text" id="company-address" placeholder="Enter company address">
                         </div>
 
                         <!-- Row 2: Customer Name | Title | Tel | Email (+) -->
@@ -1317,6 +1321,13 @@
                             <div style="position: relative;">
                                 <input type="text" id="customer-source" placeholder="Search or select source" autocomplete="off" oninput="filterCustomerSources()" onfocus="showCustomerSourceDropdown()" onblur="setTimeout(() => hideCustomerSourceDropdown(), 200)">
                                 <div id="customer-source-dropdown" class="country-dropdown hidden"></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="customer-business-type">Business Type</label>
+                            <div style="position: relative;">
+                                <input type="text" id="customer-business-type" placeholder="Search or select business type" autocomplete="off" oninput="filterCustomerBusinessTypes()" onfocus="showCustomerBusinessTypeDropdown()" onblur="setTimeout(() => hideCustomerBusinessTypeDropdown(), 200)">
+                                <div id="customer-business-type-dropdown" class="country-dropdown hidden"></div>
                             </div>
                         </div>
 
@@ -1363,6 +1374,7 @@
                                 <th style="width: 8%;">Country</th>
                                 <th style="width: 10%;">Website</th>
                                 <th style="width: 10%;">Source</th>
+                                <th style="width: 10%;">Business Type</th>
                                 <th style="width: 12%;">Remark</th>
                                 <th style="width: 10%;">Attachments</th>
                                 <th style="width: 10%;">Created At</th>
@@ -1453,7 +1465,7 @@
                     </div>
                     <h3 id="customer-source-dropdown-header" style="margin-bottom: 15px; margin-top: 30px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;" onclick="toggleCustomerSourceDropdown()">
                         <span id="customer-source-dropdown-icon" style="display: inline-block; transition: transform 0.2s;">▶</span>
-                        <span>Customer - Source</span>
+                        <span>Create Customer - Source</span>
                     </h3>
                     <div id="customer-source-dropdown-content" style="display: none;">
                         <div style="margin-bottom: 20px; position: relative;">
@@ -1464,6 +1476,21 @@
                         </div>
                         <div id="customer-sources-list" style="border: 1px solid #000000; padding: 15px; background-color: #ffffff;">
                             <div style="text-align: center; padding: 20px; color: #666;">Loading customer sources...</div>
+                        </div>
+                    </div>
+                    <h3 id="customer-business-type-dropdown-header" style="margin-bottom: 15px; margin-top: 30px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;" onclick="toggleCustomerBusinessTypeDropdown()">
+                        <span id="customer-business-type-dropdown-icon" style="display: inline-block; transition: transform 0.2s;">▶</span>
+                        <span>Create Customers - Business Type</span>
+                    </h3>
+                    <div id="customer-business-type-dropdown-content" style="display: none;">
+                        <div style="margin-bottom: 20px; position: relative;">
+                            <input type="text" id="new-customer-business-type-input" placeholder="Enter new business type name" style="width: 300px; padding: 8px; border: 1px solid #000000; margin-right: 10px;" onkeypress="if(event.key === 'Enter') addCustomerBusinessType()" oninput="showCustomerBusinessTypeSuggestions()" onfocus="showCustomerBusinessTypeSuggestions()" onblur="setTimeout(() => hideCustomerBusinessTypeSuggestions(), 200)">
+                            <div id="customer-business-type-suggestions" class="country-dropdown hidden" style="position: absolute; top: 100%; left: 0; width: 300px; z-index: 1000;"></div>
+                            <button class="form-button" onclick="addCustomerBusinessType()" style="padding: 8px 20px;">Add New Business Type</button>
+                            <div id="customer-business-type-duplicate-warning" style="color: #dc3545; font-size: 12px; margin-top: 5px; display: none;"></div>
+                        </div>
+                        <div id="customer-business-types-list" style="border: 1px solid #000000; padding: 15px; background-color: #ffffff;">
+                            <div style="text-align: center; padding: 20px; color: #666;">Loading customer business types...</div>
                         </div>
                     </div>
                 </div>
@@ -2220,6 +2247,9 @@
         let COUNTRIES = [];
         // Customer sources list - will be populated from database
         let CUSTOMER_SOURCES = [];
+        // Customer business types list - will be populated from database
+        let CUSTOMER_BUSINESS_TYPES = [];
+        let customerBusinessTypesCache = [];
         const PROVIDER_LABELS = {
             gmail: 'Gmail',
             qq: 'QQ',
@@ -5225,6 +5255,7 @@
             const attachments = task.attachments || [];
             const attachmentsText = attachments.map(att => att.filename || 'attachment').join(', ');
             const companyName = task.company_name || '';
+            const source = task.source || '';
             const createdAtDisplay = task.created_at ? escapeHtml(new Date(task.created_at).toLocaleString()) : '';
             const lastUpdatedDisplay = task.updated_at ? escapeHtml(new Date(task.updated_at).toLocaleString()) : '';
             const rowAttributes = [
@@ -5239,6 +5270,7 @@
                 `data-deadline="${escapeHtml(task.deadline || '')}"`,
                 `data-created_at="${escapeHtml(task.created_at || '')}"`,
                 `data-updated_at="${escapeHtml(task.updated_at || '')}"`,
+                `data-source="${escapeHtml(source)}"`,
                 `data-attachments="${escapeHtml(attachmentsText)}"`
             ].join(' ');
 
@@ -5255,6 +5287,7 @@
                         </td>
                         <td>${task.deadline ? escapeHtml(task.deadline) : ''}</td>
                         <td>${createdAtDisplay}</td>
+                        <td>${escapeHtml(source)}</td>
                         <td>${lastUpdatedDisplay}</td>
                         <td>${renderTaskAttachments(task)}</td>
                         <td>
@@ -5284,6 +5317,7 @@
                     </td>
                     <td><input type="date" class="inline-task-input" data-field="deadline" value="${formatDateForInput(task.deadline || '')}"></td>
                     <td>${createdAtDisplay}</td>
+                    <td>${escapeHtml(source)}</td>
                     <td>${lastUpdatedDisplay}</td>
                     <td>${renderTaskAttachments(task)}</td>
                     <td>
@@ -5338,6 +5372,7 @@
                                             <th>Template</th>
                                             <th>Deadline</th>
                                             <th>Created At</th>
+                                            <th>Source</th>
                                             <th>Last Updated</th>
                                             <th>Attachments</th>
                                             <th>Delete</th>
@@ -5351,6 +5386,7 @@
                                             <th><input type="text" class="task-filter-input" data-field="template" placeholder="Filter template"></th>
                                             <th><input type="text" class="task-filter-input" data-field="deadline" placeholder="Filter deadline"></th>
                                             <th><input type="text" class="task-filter-input" data-field="created_at" placeholder="Filter date"></th>
+                                            <th><input type="text" class="task-filter-input" data-field="source" placeholder="Filter source"></th>
                                             <th><input type="text" class="task-filter-input" data-field="updated_at" placeholder="Filter last updated"></th>
                                             <th><input type="text" class="task-filter-input" data-field="attachments" placeholder="Filter attachments"></th>
                                             <th></th>
@@ -6321,6 +6357,315 @@
             }
         }
 
+        // Toggle for customer business type dropdown list section
+        function toggleCustomerBusinessTypeDropdown() {
+            const header = document.getElementById('customer-business-type-dropdown-header');
+            const content = document.getElementById('customer-business-type-dropdown-content');
+            const icon = document.getElementById('customer-business-type-dropdown-icon');
+            if (!header || !content || !icon) return;
+            
+            if (content.style.display === 'none' || !content.style.display) {
+                content.style.display = 'block';
+                icon.textContent = '▼';
+                icon.style.transform = 'rotate(90deg)';
+                loadCustomerBusinessTypes();
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '▶';
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function loadCustomerBusinessTypes() {
+            fetch('/api/customer-business-types')
+                .then(response => response.json())
+                .then(types => {
+                    customerBusinessTypesCache = types;
+                    renderCustomerBusinessTypesList(types);
+                    updateCustomerBusinessTypeDropdown(types);
+                })
+                .catch(error => {
+                    console.error('Error loading customer business types:', error);
+                    const container = document.getElementById('customer-business-types-list');
+                    if (container) {
+                        container.innerHTML = '<div style="padding: 20px; color: #dc3545;">Error loading customer business types</div>';
+                    }
+                });
+        }
+
+        let currentCustomerBusinessTypeDragId = null;
+
+        function renderCustomerBusinessTypesList(types) {
+            const container = document.getElementById('customer-business-types-list');
+            if (!container) return;
+            
+            if (!types || types.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">No customer business types found. Add one above.</div>';
+                return;
+            }
+            
+            // Sort by display_order
+            const sortedTypes = [...types].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            
+            container.innerHTML = sortedTypes.map(type => `
+                <div class="task-type-item" draggable="true" 
+                     ondragstart="currentCustomerBusinessTypeDragId = ${type.id}; event.dataTransfer.effectAllowed = 'move';" 
+                     ondragover="event.preventDefault(); event.dataTransfer.dropEffect = 'move';" 
+                     ondrop="handleCustomerBusinessTypeDrop(event, ${type.id})" 
+                     ondragenter="event.preventDefault(); this.style.backgroundColor = '#e0e0e0';" 
+                     ondragleave="this.style.backgroundColor = '';" 
+                     style="padding: 10px; margin-bottom: 5px; border: 1px solid #ddd; background-color: #f9f9f9; cursor: move; display: flex; align-items: center; gap: 10px;">
+                    <span style="cursor: move; user-select: none;">☰</span>
+                    <input type="text" id="customer-business-type-name-${type.id}" value="${escapeHtml(type.name)}" 
+                           style="flex: 1; padding: 5px; border: 1px solid #000000;" 
+                           onblur="updateCustomerBusinessType(${type.id})">
+                    <button class="form-button" onclick="deleteCustomerBusinessType(${type.id})" style="padding: 5px 10px; font-size: 12px; background-color: #dc3545; color: white;">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        function showCustomerBusinessTypeSuggestions() {
+            const input = document.getElementById('new-customer-business-type-input');
+            const suggestionsDiv = document.getElementById('customer-business-type-suggestions');
+            const warningDiv = document.getElementById('customer-business-type-duplicate-warning');
+            
+            if (!input || !suggestionsDiv) return;
+            
+            const query = input.value.trim().toLowerCase();
+            
+            if (!query) {
+                suggestionsDiv.classList.add('hidden');
+                warningDiv.style.display = 'none';
+                return;
+            }
+            
+            // Check for duplicates
+            const existingTypes = customerBusinessTypesCache || [];
+            const isDuplicate = existingTypes.some(type => 
+                type.name.toLowerCase() === query
+            );
+            
+            if (isDuplicate) {
+                suggestionsDiv.classList.add('hidden');
+                warningDiv.textContent = 'This customer business type already exists!';
+                warningDiv.style.display = 'block';
+                input.style.borderColor = '#dc3545';
+                return;
+            } else {
+                warningDiv.style.display = 'none';
+                input.style.borderColor = '#000000';
+            }
+            
+            // Show similar suggestions
+            const similar = existingTypes
+                .filter(type => type.name.toLowerCase().includes(query))
+                .slice(0, 5);
+            
+            if (similar.length === 0) {
+                suggestionsDiv.classList.add('hidden');
+                return;
+            }
+            
+            suggestionsDiv.innerHTML = similar.map(type => 
+                `<div class="country-dropdown-item" onclick="selectCustomerBusinessTypeSuggestion('${type.name.replace(/'/g, "\\'")}')">${escapeHtml(type.name)}</div>`
+            ).join('');
+            suggestionsDiv.classList.remove('hidden');
+        }
+
+        function hideCustomerBusinessTypeSuggestions() {
+            const suggestionsDiv = document.getElementById('customer-business-type-suggestions');
+            if (suggestionsDiv) {
+                suggestionsDiv.classList.add('hidden');
+            }
+        }
+
+        function selectCustomerBusinessTypeSuggestion(name) {
+            const input = document.getElementById('new-customer-business-type-input');
+            if (input) {
+                input.value = name;
+            }
+            hideCustomerBusinessTypeSuggestions();
+            showCustomerBusinessTypeSuggestions(); // Re-check for duplicates
+        }
+
+        function addCustomerBusinessType() {
+            const input = document.getElementById('new-customer-business-type-input');
+            const warningDiv = document.getElementById('customer-business-type-duplicate-warning');
+            if (!input) return;
+            
+            const name = input.value.trim();
+            if (!name) {
+                alert('Business type name cannot be empty');
+                return;
+            }
+            
+            // Check for duplicates before submitting
+            const existingTypes = customerBusinessTypesCache || [];
+            const isDuplicate = existingTypes.some(type => 
+                type.name.toLowerCase() === name.toLowerCase()
+            );
+            
+            if (isDuplicate) {
+                warningDiv.textContent = 'This customer business type already exists!';
+                warningDiv.style.display = 'block';
+                input.style.borderColor = '#dc3545';
+                input.focus();
+                return;
+            }
+            
+            fetch('/api/customer-business-types', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    if (data.error.includes('already exists')) {
+                        warningDiv.textContent = 'This customer business type already exists!';
+                        warningDiv.style.display = 'block';
+                        input.style.borderColor = '#dc3545';
+                        input.focus();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                } else {
+                    input.value = '';
+                    warningDiv.style.display = 'none';
+                    input.style.borderColor = '#000000';
+                    hideCustomerBusinessTypeSuggestions();
+                    loadCustomerBusinessTypes();
+                }
+            })
+            .catch(error => {
+                alert('Error adding customer business type: ' + error.message);
+            });
+        }
+
+        function updateCustomerBusinessType(typeId) {
+            const nameInput = document.getElementById(`customer-business-type-name-${typeId}`);
+            const name = nameInput.value.trim();
+            
+            if (!name) {
+                alert('Business type name cannot be empty');
+                loadCustomerBusinessTypes(); // Reload to reset
+                return;
+            }
+            
+            // Find current type to preserve display_order
+            const currentType = customerBusinessTypesCache.find(t => t.id === typeId);
+            if (!currentType) {
+                loadCustomerBusinessTypes();
+                return;
+            }
+            
+            fetch(`/api/customer-business-types/${typeId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: name,
+                    display_order: currentType.display_order || 0
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    loadCustomerBusinessTypes(); // Reload to reset
+                } else {
+                    loadCustomerBusinessTypes();
+                }
+            })
+            .catch(error => {
+                alert('Error updating customer business type: ' + error.message);
+                loadCustomerBusinessTypes(); // Reload to reset
+            });
+        }
+
+        function deleteCustomerBusinessType(typeId) {
+            if (!confirm('Are you sure you want to delete this customer business type?')) {
+                return;
+            }
+            
+            fetch(`/api/customer-business-types/${typeId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    loadCustomerBusinessTypes();
+                }
+            })
+            .catch(error => {
+                alert('Error deleting customer business type: ' + error.message);
+            });
+        }
+
+        function handleCustomerBusinessTypeDrop(event, targetId) {
+            event.preventDefault();
+            if (!currentCustomerBusinessTypeDragId || currentCustomerBusinessTypeDragId === targetId) {
+                currentCustomerBusinessTypeDragId = null;
+                return;
+            }
+            
+            const fromIndex = customerBusinessTypesCache.findIndex(t => t.id === currentCustomerBusinessTypeDragId);
+            const toIndex = customerBusinessTypesCache.findIndex(t => t.id === targetId);
+            
+            if (fromIndex === -1 || toIndex === -1) {
+                currentCustomerBusinessTypeDragId = null;
+                return;
+            }
+            
+            // Reorder in memory
+            const sortedTypes = [...customerBusinessTypesCache].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            const fromIndexSorted = sortedTypes.findIndex(t => t.id === currentCustomerBusinessTypeDragId);
+            const toIndexSorted = sortedTypes.findIndex(t => t.id === targetId);
+            
+            const [moved] = sortedTypes.splice(fromIndexSorted, 1);
+            sortedTypes.splice(toIndexSorted, 0, moved);
+            
+            // Re-assign display_order sequentially
+            sortedTypes.forEach((type, index) => {
+                type.display_order = index + 1;
+            });
+            
+            // Persist all updated orders
+            Promise.all(sortedTypes.map(type => 
+                fetch(`/api/customer-business-types/${type.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: type.name,
+                        display_order: type.display_order
+                    })
+                })
+            ))
+            .then(responses => Promise.all(responses.map(r => r.json())))
+            .then(results => {
+                if (results.some(r => r.error)) {
+                    alert('Error updating order');
+                } else {
+                    loadCustomerBusinessTypes();
+                }
+            })
+            .catch(error => {
+                alert('Error reordering customer business types: ' + error.message);
+            })
+            .finally(() => {
+                currentCustomerBusinessTypeDragId = null;
+            });
+        }
+
+        function updateCustomerBusinessTypeDropdown(types) {
+            // Sort by display_order
+            const sortedTypes = [...types].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            
+            // Update CUSTOMER_BUSINESS_TYPES array for the business type input field
+            CUSTOMER_BUSINESS_TYPES = sortedTypes.map(t => t.name);
+        }
+
         // Customer source dropdown functions for Create Customer form
         function filterCustomerSources() {
             const input = document.getElementById('customer-source');
@@ -6402,6 +6747,59 @@
                 input.value = source;
             }
             hideCustomerSourceDropdown();
+        }
+
+        // Customer business type dropdown functions for Create Customer form
+        function filterCustomerBusinessTypes() {
+            const input = document.getElementById('customer-business-type');
+            const dropdown = document.getElementById('customer-business-type-dropdown');
+            if (!input || !dropdown) return;
+
+            const searchTerm = input.value.toLowerCase().trim();
+            const filtered = CUSTOMER_BUSINESS_TYPES.filter(type =>
+                type.toLowerCase().includes(searchTerm)
+            ).slice(0, 10); // Show max 10 results
+
+            if (filtered.length === 0 || searchTerm === '') {
+                dropdown.classList.add('hidden');
+                return;
+            }
+
+            dropdown.innerHTML = filtered.map(type =>
+                `<div class="country-dropdown-item" onclick="selectCustomerBusinessType('${type.replace(/'/g, "\\'")}')">${escapeHtml(type)}</div>`
+            ).join('');
+            dropdown.classList.remove('hidden');
+        }
+
+        function showCustomerBusinessTypeDropdown() {
+            const input = document.getElementById('customer-business-type');
+            const dropdown = document.getElementById('customer-business-type-dropdown');
+            if (!input || !dropdown) return;
+
+            if (input.value.trim() === '') {
+                const topTypes = CUSTOMER_BUSINESS_TYPES.slice(0, 10);
+                dropdown.innerHTML = topTypes.map(type =>
+                    `<div class="country-dropdown-item" onclick="selectCustomerBusinessType('${type.replace(/'/g, "\\'")}')">${escapeHtml(type)}</div>`
+                ).join('');
+                dropdown.classList.remove('hidden');
+            } else {
+                filterCustomerBusinessTypes();
+            }
+        }
+
+        function hideCustomerBusinessTypeDropdown() {
+            const dropdown = document.getElementById('customer-business-type-dropdown');
+            if (dropdown) {
+                dropdown.classList.add('hidden');
+            }
+        }
+
+        function selectCustomerBusinessType(type) {
+            const input = document.getElementById('customer-business-type');
+            if (input) {
+                input.value = type;
+            }
+            hideCustomerBusinessTypeDropdown();
         }
 
         // Edit mode dropdown functions for Country
@@ -6737,14 +7135,18 @@
         function saveCustomer() {
             const companyInput = document.getElementById('company-name');
             const countryInput = document.getElementById('customer-country');
+            const addressInput = document.getElementById('company-address');
             const websiteInput = document.getElementById('customer-website');
             const sourceInput = document.getElementById('customer-source');
+            const businessTypeSelect = document.getElementById('customer-business-type');
             const remarkDiv = document.getElementById('customer-remark');
             
             const companyName = (companyInput && companyInput.value || '').trim();
             const country = (countryInput.value || '').trim();
+            const address = (addressInput && addressInput.value || '').trim();
             const website = (websiteInput.value || '').trim();
             const source = (sourceInput && sourceInput.value || '').trim();
+            const businessType = (businessTypeSelect && businessTypeSelect.value || '').trim();
             const remark = remarkDiv ? remarkDiv.innerHTML.trim() : '';
 
             const contacts = collectCustomerContacts();
@@ -6784,9 +7186,11 @@
                 country: country || null,
                 website: website && website.trim() !== '' ? website : null,
                 source: source || null,
+                business_type: businessType || null,
                 remark: remark || null,
                 attachments: customerAttachments.length > 0 ? JSON.stringify(customerAttachments) : null,
-                company_name: companyName || null
+                company_name: companyName || null,
+                address: address || null
             };
 
             const requests = contacts.map(contact => {
@@ -7077,6 +7481,7 @@
                     country: editedData.country || null,
                     website: editedData.website || null,
                     source: editedData.source || null,
+                    business_type: editedData.business_type || null,
                     remark: editedData.remark || null,
                     attachments: attachments
                 })
@@ -7158,24 +7563,27 @@
                                 const safeFilename = escapeHtml(filename);
                                 const sizeStr = formatAttachmentSize(att.size || 0);
                                 const contentType = att.content_type || 'application/octet-stream';
-                                const dataUrl = `data:${contentType};base64,${att.data}`;
                                 const isImage = isImageContent(att.filename, contentType);
                                 const isPDF = isPDFContent(att.filename, contentType);
-                                const isText = isTextContent(att.filename, contentType);
-                                const isViewable = Boolean(isImage || isPDF || isText);
-
-                                const labelHtml = `
-                                    <div class="attachment-filename">📎 ${safeFilename}</div>
-                                    <div class="attachment-size">${sizeStr}</div>
+                                let iconChar = '🎞️';
+                                if (isPDF) {
+                                    iconChar = '📄';
+                                }
+                                const thumbHtml = isImage
+                                    ? `<img src="data:${contentType};base64,${att.data}" alt="${safeFilename}" class="task-attachment-thumb" onclick="openCustomerAttachment(${customer.id}, ${idx})">`
+                                    : `<div class="task-attachment-thumb" style="display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;" onclick="openCustomerAttachment(${customer.id}, ${idx})">${iconChar}</div>`;
+                                const metaHtml = `
+                                    <div class="attachment-row-info">
+                                        <div class="attachment-filename">${safeFilename}</div>
+                                        <div class="attachment-size">${sizeStr}</div>
+                                    </div>
                                 `;
-
-                                const viewHtml = isViewable
-                                    ? `<div class="attachment-view-link" onclick="openCustomerAttachment(${customer.id}, ${idx})" style="font-size: 11px;">${labelHtml}</div>`
-                                    : `<div style="font-size: 11px;">${labelHtml}</div>`;
-
-                                const downloadLink = `<a class="attachment-download-link" href="${dataUrl}" download="${escapeHtml(att.filename || 'attachment')}" style="margin-left: 4px; font-size: 14px; text-decoration: none;" title="Download ${safeFilename}">⬇</a>`;
-
-                                return `<div class="task-attachment-entry">${viewHtml}${downloadLink}</div>`;
+                                return `
+                                    <div class="task-attachment-entry" style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;">
+                                        ${thumbHtml}
+                                        ${metaHtml}
+                                    </div>
+                                `;
                             }).join('');
                         }
                     }
@@ -7192,6 +7600,7 @@
                     <td class="editable-cell" data-field="country">${escapeHtml(country)}</td>
                     <td class="editable-cell" data-field="website">${websiteLink ? `<a href="${escapeHtml(websiteLink)}" target="_blank" rel="noopener noreferrer">${escapeHtml(website)}</a>` : ''}</td>
                     <td class="editable-cell" data-field="source">${escapeHtml(customer.source || '')}</td>
+                    <td class="editable-cell" data-field="business_type">${escapeHtml(customer.business_type || '')}</td>
                     <td class="editable-cell" data-field="remark" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;">${remark}</td>
                     <td style="max-width: 150px; font-size: 11px;">${attachmentsHtml || '-'}</td>
                     <td>${escapeHtml(customer.created_at ? new Date(customer.created_at).toLocaleString() : '')}</td>
