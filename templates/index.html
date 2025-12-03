@@ -352,6 +352,15 @@
             font-size: 11px;
         }
 
+        .task-attachment-thumb {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border: 1px solid #000000;
+            margin-right: 10px;
+            background-color: #ffffff;
+        }
+
         .task-type-row {
             cursor: move;
         }
@@ -1248,13 +1257,14 @@
                     <table class="customer-table">
                         <thead>
                             <tr>
-                                <th style="width: 12%;">Name</th>
-                                <th style="width: 15%;">Email Address</th>
-                                <th style="width: 10%;">Country</th>
-                                <th style="width: 12%;">Website</th>
-                                <th style="width: 15%;">Remark</th>
-                                <th style="width: 12%;">Attachments</th>
-                                <th style="width: 12%;">Created At</th>
+                                <th style="width: 10%;">Name</th>
+                                <th style="width: 12%;">Company Name</th>
+                                <th style="width: 13%;">Email Address</th>
+                                <th style="width: 9%;">Country</th>
+                                <th style="width: 11%;">Website</th>
+                                <th style="width: 13%;">Remark</th>
+                                <th style="width: 11%;">Attachments</th>
+                                <th style="width: 11%;">Created At</th>
                                 <th style="width: 10%;">Actions</th>
                             </tr>
                         </thead>
@@ -1310,13 +1320,31 @@
             </div>
             <div id="dropdown-list-content" class="hidden">
                 <div>
-                    <h3 style="margin-bottom: 15px;">Manage Task Type Dropdown</h3>
-                    <div style="margin-bottom: 20px;">
-                        <input type="text" id="new-task-type-input" placeholder="Enter new task type name" style="width: 300px; padding: 8px; border: 1px solid #000000; margin-right: 10px;" onkeypress="if(event.key === 'Enter') addTaskType()">
-                        <button class="form-button" onclick="addTaskType()" style="padding: 8px 20px;">Add New Type</button>
+                    <h3 id="task-type-dropdown-header" style="margin-bottom: 15px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;" onclick="toggleTaskTypeDropdown()">
+                        <span id="task-type-dropdown-icon" style="display: inline-block; transition: transform 0.2s;">▶</span>
+                        <span>Manage Task Type Dropdown</span>
+                    </h3>
+                    <div id="task-type-dropdown-content" style="display: none;">
+                        <div style="margin-bottom: 20px;">
+                            <input type="text" id="new-task-type-input" placeholder="Enter new task type name" style="width: 300px; padding: 8px; border: 1px solid #000000; margin-right: 10px;" onkeypress="if(event.key === 'Enter') addTaskType()">
+                            <button class="form-button" onclick="addTaskType()" style="padding: 8px 20px;">Add New Type</button>
+                        </div>
+                        <div id="task-types-list" style="border: 1px solid #000000; padding: 15px; background-color: #ffffff;">
+                            <div style="text-align: center; padding: 20px; color: #666;">Loading task types...</div>
+                        </div>
                     </div>
-                    <div id="task-types-list" style="border: 1px solid #000000; padding: 15px; background-color: #ffffff;">
-                        <div style="text-align: center; padding: 20px; color: #666;">Loading task types...</div>
+                    <h3 id="country-dropdown-header" style="margin-bottom: 15px; margin-top: 30px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;" onclick="toggleCountryDropdown()">
+                        <span id="country-dropdown-icon" style="display: inline-block; transition: transform 0.2s;">▶</span>
+                        <span>Manage Country Dropdown (Create Customer)</span>
+                    </h3>
+                    <div id="country-dropdown-content" style="display: none;">
+                        <div style="margin-bottom: 20px;">
+                            <input type="text" id="new-country-input" placeholder="Enter new country name" style="width: 300px; padding: 8px; border: 1px solid #000000; margin-right: 10px;" onkeypress="if(event.key === 'Enter') addCountry()">
+                            <button class="form-button" onclick="addCountry()" style="padding: 8px 20px;">Add New Country</button>
+                        </div>
+                        <div id="countries-list" style="border: 1px solid #000000; padding: 15px; background-color: #ffffff;">
+                            <div style="text-align: center; padding: 20px; color: #666;">Loading countries...</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1716,7 +1744,7 @@
         </div>
     </div>
 
-    <div id="preview-modal" class="modal hidden" onclick="closePreviewModal()" role="dialog" aria-modal="true" aria-labelledby="preview-modal-title">
+    <div id="preview-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="preview-modal-title">
         <div class="modal-dialog preview-modal-dialog" onclick="event.stopPropagation();">
             <div class="modal-header">
                 <div class="modal-title" id="preview-modal-title">Preview</div>
@@ -1831,8 +1859,9 @@
             const lowerQuery = query.toLowerCase();
             return customerCache.filter(customer => {
                 const name = (customer.name || '').toLowerCase();
+                const companyName = (customer.company_name || '').toLowerCase();
                 const email = (customer.email_suffix || '').toLowerCase();
-                return name.includes(lowerQuery) || email.includes(lowerQuery);
+                return name.includes(lowerQuery) || companyName.includes(lowerQuery) || email.includes(lowerQuery);
             });
         }
 
@@ -1847,9 +1876,16 @@
                 const item = document.createElement('div');
                 item.className = 'autocomplete-item';
                 item.dataset.index = index;
+                const companyName = customer.company_name || '';
+                const customerName = customer.name || '';
+                const email = customer.email_suffix || '';
+                const parts = [];
+                if (companyName) parts.push(escapeHtml(companyName));
+                if (customerName) parts.push(escapeHtml(customerName));
+                const nameDisplay = parts.length > 0 ? parts.join(' • ') : escapeHtml(email);
                 item.innerHTML = `
-                    <div class="autocomplete-item-name">${escapeHtml(customer.name || customer.email_suffix || '')}</div>
-                    <div class="autocomplete-item-email">${escapeHtml(customer.email_suffix || '')}</div>
+                    <div class="autocomplete-item-name">${nameDisplay}</div>
+                    <div class="autocomplete-item-email">${escapeHtml(email)}</div>
                 `;
                 item.addEventListener('click', () => {
                     onSelect(customer);
@@ -2702,6 +2738,8 @@
             await loadCustomers(false);
             await saveYesterdayEmailsToSQLite();
             await loadCachedEmailsOnStartup();
+            // Load countries for dropdown
+            loadCountries();
             document.addEventListener('keydown', (evt) => {
                 if (evt.key === 'Escape' && !emailModal.classList.contains('hidden')) {
                     closeEmailModal();
@@ -2712,9 +2750,7 @@
                 if (evt.key === 'Escape' && !attachmentModal.classList.contains('hidden')) {
                     closeAttachmentModal();
                 }
-                if (evt.key === 'Escape' && previewModal && !previewModal.classList.contains('hidden')) {
-                    closePreviewModal();
-                }
+                // Intentionally do NOT close the preview modal on Escape so it can only be closed via the (X) button
             });
 
             if (customerSuffixInput) {
@@ -2855,8 +2891,9 @@
                         </div>
                         <div class="form-group" style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: bold;">Attachments</label>
-                            <div id="task-form-dropzone" style="border: 2px dashed #000000; padding: 20px; text-align: center; background-color: #f9f9f9; min-height: 100px; margin-bottom: 15px;">
-                                <p style="margin: 0; color: #666;">Drag and drop files here or click to select</p>
+                            <div id="task-form-dropzone" tabindex="0" style="border: 2px dashed #000000; padding: 20px; text-align: center; background-color: #f9f9f9; min-height: 100px; margin-bottom: 15px;">
+                                <p style="margin: 0; color: #666;">Drag and drop files here, click the Browse button, or paste images (Ctrl+V)</p>
+                                <button type="button" id="task-form-browse-btn" class="form-button" style="margin-top: 12px; padding: 8px 20px;">Browse</button>
                                 <input type="file" id="task-form-file-input" multiple style="display: none;" onchange="handleTaskFileSelect(event)">
                             </div>
                             <div id="task-form-attachments-list"></div>
@@ -2974,11 +3011,13 @@
         function setupTaskDragAndDrop() {
             const dropzone = document.getElementById('task-form-dropzone');
             const fileInput = document.getElementById('task-form-file-input');
+            const browseButton = document.getElementById('task-form-browse-btn');
             
-            if (!dropzone || !fileInput) return;
+            if (!dropzone || !fileInput || !browseButton) return;
             
-            // Click to select files
-            dropzone.addEventListener('click', () => {
+            // Dedicated browse button to open file picker
+            browseButton.addEventListener('click', (e) => {
+                e.stopPropagation();
                 fileInput.click();
             });
             
@@ -2997,6 +3036,28 @@
                 dropzone.style.backgroundColor = '#f9f9f9';
                 const files = Array.from(e.dataTransfer.files);
                 handleTaskFiles(files);
+            });
+
+            // Paste image from clipboard
+            dropzone.addEventListener('paste', (e) => {
+                const clipboardData = e.clipboardData || window.clipboardData;
+                if (!clipboardData || !clipboardData.items) {
+                    return;
+                }
+                const files = [];
+                for (let i = 0; i < clipboardData.items.length; i++) {
+                    const item = clipboardData.items[i];
+                    if (item.kind === 'file') {
+                        const file = item.getAsFile();
+                        if (file && file.type && file.type.startsWith('image/')) {
+                            files.push(file);
+                        }
+                    }
+                }
+                if (files.length > 0) {
+                    e.preventDefault();
+                    handleTaskFiles(files);
+                }
             });
         }
 
@@ -3039,11 +3100,17 @@
             container.innerHTML = window.taskFormAttachments.map((att, idx) => {
                 const filename = escapeHtml(att.filename || 'attachment');
                 const size = formatAttachmentSize(att.size || 0);
+                const contentType = att.content_type || 'application/octet-stream';
+                const isImage = (contentType || '').toLowerCase().startsWith('image/');
+                const thumbHtml = isImage
+                    ? `<img src="data:${contentType};base64,${att.data}" alt="${filename}" class="task-attachment-thumb" data-index="${idx}" onclick="openTaskFormAttachmentPreview(${idx})">`
+                    : '';
                 return `
-                    <div class="task-attachment-display" style="margin-bottom: 10px;">
+                    <div class="task-attachment-display" style="margin-bottom: 10px; display: flex; align-items: flex-start;">
+                        ${thumbHtml}
                         <div class="task-attachment-info" style="flex: 1;">
                             <div style="font-weight: bold;">${filename}</div>
-                            <div style="font-size: 12px; color: #666;">${att.content_type || 'application/octet-stream'} • ${size}</div>
+                            <div style="font-size: 12px; color: #666;">${contentType} • ${size}</div>
                             <input type="text" class="task-attachment-caption" data-index="${idx}" placeholder="Enter caption for this attachment" style="width: 100%; margin-top: 5px; padding: 5px; border: 1px solid #000000;" value="${escapeHtml(att.caption || '')}">
                         </div>
                         <div class="task-attachment-actions">
@@ -3186,6 +3253,8 @@
             }
             // Load task types list
             loadTaskTypes();
+            // Load countries list
+            loadCountries();
         }
 
         function showSettings() {
@@ -3206,6 +3275,38 @@
 
         // Task Types Management Functions
         let taskTypesCache = [];
+
+        function toggleTaskTypeDropdown() {
+            const content = document.getElementById('task-type-dropdown-content');
+            const icon = document.getElementById('task-type-dropdown-icon');
+            if (!content || !icon) return;
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.textContent = '▼';
+                icon.style.transform = 'rotate(0deg)';
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '▶';
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function toggleCountryDropdown() {
+            const content = document.getElementById('country-dropdown-content');
+            const icon = document.getElementById('country-dropdown-icon');
+            if (!content || !icon) return;
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.textContent = '▼';
+                icon.style.transform = 'rotate(0deg)';
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '▶';
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
 
         function loadTaskTypes() {
             fetch('/api/task-types')
@@ -3462,6 +3563,216 @@
                 if (currentValue) {
                     taskCatalogueSelect.value = currentValue;
                 }
+            }
+        }
+
+        // Countries Management Functions
+        let countriesCache = [];
+
+        function loadCountries() {
+            fetch('/api/countries')
+                .then(response => response.json())
+                .then(countries => {
+                    countriesCache = countries;
+                    renderCountriesList(countries);
+                    updateCountryDropdown(countries);
+                })
+                .catch(error => {
+                    console.error('Error loading countries:', error);
+                    const container = document.getElementById('countries-list');
+                    if (container) {
+                        container.innerHTML = '<div style="padding: 20px; color: #dc3545;">Error loading countries</div>';
+                    }
+                });
+        }
+
+        let currentCountryDragId = null;
+
+        function renderCountriesList(countries) {
+            const container = document.getElementById('countries-list');
+            if (!container) return;
+            
+            if (!countries || countries.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">No countries found. Add one above.</div>';
+                return;
+            }
+            
+            // Sort by display_order
+            const sortedCountries = [...countries].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            
+            container.innerHTML = sortedCountries.map(country => `
+                <div class="task-type-item" draggable="true" 
+                     ondragstart="currentCountryDragId = ${country.id}; event.dataTransfer.effectAllowed = 'move';" 
+                     ondragover="event.preventDefault(); event.dataTransfer.dropEffect = 'move';" 
+                     ondrop="handleCountryDrop(event, ${country.id})" 
+                     ondragenter="event.preventDefault(); this.style.backgroundColor = '#e0e0e0';" 
+                     ondragleave="this.style.backgroundColor = '';" 
+                     style="padding: 10px; margin-bottom: 5px; border: 1px solid #ddd; background-color: #f9f9f9; cursor: move; display: flex; align-items: center; gap: 10px;">
+                    <span style="cursor: move; user-select: none;">☰</span>
+                    <input type="text" id="country-name-${country.id}" value="${escapeHtml(country.name)}" 
+                           style="flex: 1; padding: 5px; border: 1px solid #000000;" 
+                           onblur="updateCountry(${country.id})">
+                    <button class="form-button" onclick="deleteCountry(${country.id})" style="padding: 5px 10px; font-size: 12px; background-color: #dc3545; color: white;">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        function addCountry() {
+            const input = document.getElementById('new-country-input');
+            if (!input) return;
+            
+            const name = input.value.trim();
+            if (!name) {
+                alert('Country name cannot be empty');
+                return;
+            }
+            
+            fetch('/api/countries', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    input.value = '';
+                    loadCountries();
+                }
+            })
+            .catch(error => {
+                alert('Error adding country: ' + error.message);
+            });
+        }
+
+        function updateCountry(countryId) {
+            const nameInput = document.getElementById(`country-name-${countryId}`);
+            const name = nameInput.value.trim();
+            
+            if (!name) {
+                alert('Country name cannot be empty');
+                loadCountries(); // Reload to reset
+                return;
+            }
+            
+            // Find current country to preserve display_order
+            const currentCountry = countriesCache.find(c => c.id === countryId);
+            if (!currentCountry) {
+                loadCountries();
+                return;
+            }
+            
+            fetch(`/api/countries/${countryId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: name,
+                    display_order: currentCountry.display_order || 0
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    loadCountries(); // Reload to reset
+                } else {
+                    loadCountries();
+                }
+            })
+            .catch(error => {
+                alert('Error updating country: ' + error.message);
+                loadCountries(); // Reload to reset
+            });
+        }
+
+        function deleteCountry(countryId) {
+            if (!confirm('Are you sure you want to delete this country?')) {
+                return;
+            }
+            
+            fetch(`/api/countries/${countryId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    loadCountries();
+                }
+            })
+            .catch(error => {
+                alert('Error deleting country: ' + error.message);
+            });
+        }
+
+        function handleCountryDrop(event, targetId) {
+            event.preventDefault();
+            if (!currentCountryDragId || currentCountryDragId === targetId) {
+                currentCountryDragId = null;
+                return;
+            }
+            
+            const fromIndex = countriesCache.findIndex(c => c.id === currentCountryDragId);
+            const toIndex = countriesCache.findIndex(c => c.id === targetId);
+            
+            if (fromIndex === -1 || toIndex === -1) {
+                currentCountryDragId = null;
+                return;
+            }
+            
+            // Reorder in memory
+            const sortedCountries = [...countriesCache].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            const fromIndexSorted = sortedCountries.findIndex(c => c.id === currentCountryDragId);
+            const toIndexSorted = sortedCountries.findIndex(c => c.id === targetId);
+            
+            const [moved] = sortedCountries.splice(fromIndexSorted, 1);
+            sortedCountries.splice(toIndexSorted, 0, moved);
+            
+            // Re-assign display_order sequentially
+            sortedCountries.forEach((country, index) => {
+                country.display_order = index + 1;
+            });
+            
+            // Persist all updated orders
+            Promise.all(sortedCountries.map(country => 
+                fetch(`/api/countries/${country.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: country.name,
+                        display_order: country.display_order
+                    })
+                })
+            ))
+            .then(responses => Promise.all(responses.map(r => r.json())))
+            .then(results => {
+                if (results.some(r => r.error)) {
+                    alert('Error updating order');
+                } else {
+                    loadCountries();
+                }
+            })
+            .catch(error => {
+                alert('Error reordering countries: ' + error.message);
+            })
+            .finally(() => {
+                currentCountryDragId = null;
+            });
+        }
+
+        function updateCountryDropdown(countries) {
+            // Sort by display_order
+            const sortedCountries = [...countries].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            
+            // Update global COUNTRIES array for the country input field
+            window.COUNTRIES = sortedCountries.map(c => c.name);
+            
+            // If country dropdown is visible, refresh it
+            const countryInput = document.getElementById('customer-country');
+            if (countryInput && document.getElementById('country-dropdown') && !document.getElementById('country-dropdown').classList.contains('hidden')) {
+                filterCountries();
             }
         }
 
@@ -4487,6 +4798,7 @@
                                         <tr>
                                             <th>Sequence</th>
                                             <th>Customer</th>
+                                            <th>Company Name</th>
                                             <th>Email</th>
                                             <th>Type</th>
                                             <th>Template</th>
@@ -4497,6 +4809,7 @@
                                         <tr>
                                             <th><input type="text" class="task-filter-input" data-field="sequence" placeholder="Filter sequence"></th>
                                             <th><input type="text" class="task-filter-input" data-field="customer" placeholder="Filter customer"></th>
+                                            <th><input type="text" class="task-filter-input" data-field="company_name" placeholder="Filter company name"></th>
                                             <th><input type="text" class="task-filter-input" data-field="email" placeholder="Filter email"></th>
                                             <th><input type="text" class="task-filter-input" data-field="catalogue" placeholder="Filter type"></th>
                                             <th><input type="text" class="task-filter-input" data-field="template" placeholder="Filter template"></th>
@@ -4508,10 +4821,12 @@
                                     <tbody id="task-table-body">
                                         ${tasks.map(task => {
                                             const attachmentsText = (task.attachments || []).map(att => att.filename || 'attachment').join(', ');
+                                            const companyName = task.company_name || '';
                                             return `
                                                 <tr
                                                     data-sequence="${escapeHtml(task.sequence || '')}"
                                                     data-customer="${escapeHtml(task.customer || '')}"
+                                                    data-company_name="${escapeHtml(companyName)}"
                                                     data-email="${escapeHtml(task.email || '')}"
                                                     data-catalogue="${escapeHtml(task.catalogue || '')}"
                                                     data-template="${escapeHtml(task.template || '')}"
@@ -4520,6 +4835,7 @@
                                                 >
                                                     <td>${escapeHtml(task.sequence || '')}</td>
                                                     <td>${escapeHtml(task.customer || '')}</td>
+                                                    <td>${escapeHtml(companyName)}</td>
                                                     <td>${escapeHtml(task.email || '')}</td>
                                                     <td>${escapeHtml(task.catalogue || '')}</td>
                                                     <td class="task-template-cell" title="${escapeHtml(task.template || '')}">
@@ -4693,6 +5009,18 @@
             const contentType = att.content_type || 'application/octet-stream';
             const filename = att.filename || `Attachment ${attachmentIndex + 1}`;
             
+            openPreviewModal(att.data || '', contentType, filename);
+        }
+
+        function openTaskFormAttachmentPreview(attachmentIndex) {
+            if (!window.taskFormAttachments || !window.taskFormAttachments[attachmentIndex]) {
+                return;
+            }
+
+            const att = window.taskFormAttachments[attachmentIndex];
+            const contentType = att.content_type || 'application/octet-stream';
+            const filename = att.filename || `Attachment ${attachmentIndex + 1}`;
+
             openPreviewModal(att.data || '', contentType, filename);
         }
 
@@ -5231,6 +5559,7 @@
                 return `
                 <tr>
                     <td>${escapeHtml(customer.name || '')}</td>
+                    <td>${escapeHtml(customer.company_name || '')}</td>
                     <td>${escapeHtml(customer.email_suffix || '')}</td>
                     <td>${escapeHtml(country)}</td>
                     <td>${websiteLink ? `<a href="${escapeHtml(websiteLink)}" target="_blank" rel="noopener noreferrer">${escapeHtml(website)}</a>` : ''}</td>

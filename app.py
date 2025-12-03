@@ -20,7 +20,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 app = Flask(__name__)
-app.config['VERSION'] = '1.0.61'
+app.config['VERSION'] = '1.0.63'
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Default email configurations (can be overridden via settings)
@@ -221,6 +221,33 @@ def initialize_database():
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
+        # Countries table for dropdown options
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS countries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                display_order INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        # Initialize default countries if table is empty
+        cursor.execute("SELECT COUNT(*) as count FROM countries")
+        if cursor.fetchone()['count'] == 0:
+            default_countries = [
+                ('United States', 1),
+                ('United Kingdom', 2),
+                ('Canada', 3),
+                ('Australia', 4),
+                ('Germany', 5),
+                ('France', 6),
+                ('Japan', 7),
+                ('China', 8),
+                ('India', 9),
+                ('Brazil', 10)
+            ]
+            cursor.executemany("""
+                INSERT INTO countries (name, display_order) VALUES (?, ?)
+            """, default_countries)
         connection.commit()
     finally:
         if cursor:
@@ -1463,9 +1490,11 @@ def handle_tasks():
             connection = get_db_connection()
             cursor = connection.cursor()
             cursor.execute("""
-                SELECT id, sequence, customer, email, catalogue, template, attachments, created_at
-                FROM tasks
-                ORDER BY datetime(created_at) DESC
+                SELECT t.id, t.sequence, t.customer, t.email, t.catalogue, t.template, t.attachments, t.created_at,
+                       c.company_name
+                FROM tasks t
+                LEFT JOIN customers c ON (c.name = t.customer OR c.email_suffix = t.email)
+                ORDER BY datetime(t.created_at) DESC
             """)
             rows = cursor.fetchall()
             cursor.close()
@@ -1487,7 +1516,8 @@ def handle_tasks():
                     'catalogue': row[4],
                     'template': row[5],
                     'attachments': attachments,
-                    'created_at': row[7]
+                    'created_at': row[7],
+                    'company_name': row[8] if len(row) > 8 else None
                 })
             
             return jsonify({'tasks': tasks})
@@ -1666,6 +1696,120 @@ def handle_task_type(type_id):
                 return jsonify({'status': 'deleted', 'id': type_id})
             else:
                 return jsonify({'error': 'Task type not found'}), 404
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+
+
+@app.route('/api/countries', methods=['GET', 'POST'])
+def handle_countries():
+    """Handle country retrieval and creation"""
+    if request.method == 'GET':
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            cursor.execute("SELECT id, name, display_order, created_at FROM countries ORDER BY display_order, name")
+            countries = [dict(row) for row in cursor.fetchall()]
+            cursor.close()
+            connection.close()
+            return jsonify(countries)
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            name = data.get('name', '').strip()
+            if not name:
+                return jsonify({'error': 'Country name is required'}), 400
+            
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            
+            # Check if name already exists
+            cursor.execute("SELECT id FROM countries WHERE name = ?", (name,))
+            if cursor.fetchone():
+                cursor.close()
+                connection.close()
+                return jsonify({'error': 'Country with this name already exists'}), 400
+            
+            # Get max display_order
+            cursor.execute("SELECT MAX(display_order) as max_order FROM countries")
+            max_order = cursor.fetchone()['max_order'] or 0
+            display_order = data.get('display_order', max_order + 1)
+            
+            cursor.execute("""
+                INSERT INTO countries (name, display_order) VALUES (?, ?)
+            """, (name, display_order))
+            connection.commit()
+            country_id = cursor.lastrowid
+            cursor.close()
+            connection.close()
+            
+            return jsonify({
+                'id': country_id,
+                'name': name,
+                'display_order': display_order,
+                'status': 'created'
+            }), 201
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+
+
+@app.route('/api/countries/<int:country_id>', methods=['PUT', 'DELETE'])
+def handle_country(country_id):
+    """Handle country update and deletion"""
+    if request.method == 'PUT':
+        try:
+            data = request.get_json()
+            name = data.get('name', '').strip()
+            if not name:
+                return jsonify({'error': 'Country name is required'}), 400
+            
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            
+            # Check if name already exists for another country
+            cursor.execute("SELECT id FROM countries WHERE name = ? AND id != ?", (name, country_id))
+            if cursor.fetchone():
+                cursor.close()
+                connection.close()
+                return jsonify({'error': 'Country with this name already exists'}), 400
+            
+            display_order = data.get('display_order', 0)
+            cursor.execute("""
+                UPDATE countries SET name = ?, display_order = ? WHERE id = ?
+            """, (name, display_order, country_id))
+            connection.commit()
+            updated = cursor.rowcount > 0
+            cursor.close()
+            connection.close()
+            
+            if updated:
+                return jsonify({
+                    'id': country_id,
+                    'name': name,
+                    'display_order': display_order,
+                    'status': 'updated'
+                })
+            else:
+                return jsonify({'error': 'Country not found'}), 404
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+    
+    elif request.method == 'DELETE':
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM countries WHERE id = ?", (country_id,))
+            connection.commit()
+            deleted = cursor.rowcount > 0
+            cursor.close()
+            connection.close()
+            
+            if deleted:
+                return jsonify({'status': 'deleted', 'id': country_id})
+            else:
+                return jsonify({'error': 'Country not found'}), 404
         except Exception as exc:
             return jsonify({'error': f'Database error: {str(exc)}'}), 500
 
