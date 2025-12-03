@@ -2081,6 +2081,7 @@
         let customerCache = [];
         let currentPreviewObjectUrl = null;
         let customerAttachments = [];
+        let lastSelectedCustomerForTask = null;
 
         // Autocomplete functions
         function filterCustomers(query) {
@@ -5089,6 +5090,61 @@
             taskModal.classList.remove('hidden');
         }
 
+        function openTaskForCustomer(customerId) {
+            const customer = (customerCache || []).find(c => c.id === customerId);
+            if (!customer) {
+                alert('Customer not found. Please refresh the customer list and try again.');
+                return;
+            }
+
+            // Switch to Task view (right content)
+            showTask();
+
+            // Ensure customers are loaded and the inline task form is rendered,
+            // then pre-fill that form with the selected customer's info.
+            const ensureCustomers = (!customerCache || customerCache.length === 0)
+                ? loadCustomers(false)
+                : Promise.resolve(customerCache);
+
+            ensureCustomers
+                .then(() => {
+                    const container = document.getElementById('task-display-container');
+                    if (!container) return;
+
+                    // Ensure the inline task form exists
+                    renderTaskForm(container);
+
+                    // After render, wire autocomplete and then set values
+                    setTimeout(() => {
+                        setupAutocomplete(
+                            'task-form-customer',
+                            'task-form-customer-dropdown',
+                            'task-form-customer-value',
+                            'task-form-email'
+                        );
+
+                        const customerInput = document.getElementById('task-form-customer');
+                        const customerValueInput = document.getElementById('task-form-customer-value');
+                        const emailInput = document.getElementById('task-form-email');
+
+                        if (customerInput) {
+                            customerInput.value = customer.name || customer.company_name || customer.email_suffix || '';
+                        }
+                        if (customerValueInput) {
+                            customerValueInput.value = customer.email_suffix || '';
+                        }
+                        if (emailInput) {
+                            const storedEmail = (customer.email_suffix || '').trim();
+                            emailInput.value = storedEmail.includes('@') ? storedEmail : '';
+                        }
+                    }, 100);
+                })
+                .catch(() => {
+                    // If anything fails, at least navigate to Task screen
+                    showTask();
+                });
+        }
+
         function closeTaskModal() {
             taskModal.classList.add('hidden');
             // Clear attachments display
@@ -7861,7 +7917,8 @@
                         <button class="form-button edit-customer-btn" onclick="editCustomer(${customer.id})" style="padding: 5px 10px; font-size: 12px; cursor: pointer; margin-right: 5px;">Edit</button>
                         <button class="form-button save-customer-btn hidden" onclick="saveCustomerEdit(${customer.id})" style="padding: 5px 10px; font-size: 12px; cursor: pointer; margin-right: 5px; background-color: #28a745; color: white;">Save</button>
                         <button class="form-button cancel-customer-btn hidden" onclick="cancelCustomerEdit(${customer.id})" style="padding: 5px 10px; font-size: 12px; cursor: pointer; margin-right: 5px; background-color: #6c757d; color: white;">Cancel</button>
-                        <button class="form-button" onclick="deleteCustomer(${customer.id}, '${escapeHtml(customer.name || '')}')" style="padding: 5px 10px; font-size: 12px; cursor: pointer; background-color: #dc3545; color: white;">Delete</button>
+                        <button class="form-button" onclick="deleteCustomer(${customer.id}, '${escapeHtml(customer.name || '')}')" style="padding: 5px 10px; font-size: 12px; cursor: pointer; margin-right: 5px; background-color: #dc3545; color: white;">Delete</button>
+                        <button class="form-button" onclick="openTaskForCustomer(${customer.id})" style="padding: 5px 10px; font-size: 12px; cursor: pointer; background-color: #007bff; color: white; margin-top: 5px;">Task</button>
                     </td>
                 </tr>
             `;
