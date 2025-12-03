@@ -4203,11 +4203,12 @@
         }
 
         function updateCountryDropdown(countries) {
-            // Sort by display_order
-            const sortedCountries = [...countries].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-            
-            // Update COUNTRIES array for the country input field
-            COUNTRIES = sortedCountries.map(c => c.name);
+            // Build alphabetically sorted list of country names for Create Customer dropdown
+            const sortedNames = [...countries.map(c => c.name)].sort((a, b) => 
+                (a || '').localeCompare(b || '')
+            );
+            // Update COUNTRIES array for the country input field (always A→Z)
+            COUNTRIES = sortedNames;
             
             // If country dropdown is visible, refresh it
             const countryInput = document.getElementById('customer-country');
@@ -5964,8 +5965,10 @@
                 fetch('/api/countries')
                     .then(response => response.json())
                     .then(countries => {
-                        const sortedCountries = [...countries].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-                        COUNTRIES = sortedCountries.map(c => c.name);
+                        // Alphabetical list for Create Customer dropdown
+                        COUNTRIES = countries
+                            .map(c => c.name)
+                            .sort((a, b) => (a || '').localeCompare(b || ''));
                         filterCountries(); // Retry after loading
                     })
                     .catch(error => {
@@ -6000,8 +6003,10 @@
                 fetch('/api/countries')
                     .then(response => response.json())
                     .then(countries => {
-                        const sortedCountries = [...countries].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-                        COUNTRIES = sortedCountries.map(c => c.name);
+                        // Alphabetical list for Create Customer dropdown
+                        COUNTRIES = countries
+                            .map(c => c.name)
+                            .sort((a, b) => (a || '').localeCompare(b || ''));
                         showCountryDropdown(); // Retry after loading
                     })
                     .catch(error => {
@@ -6011,8 +6016,9 @@
             }
             
             if (input.value.trim() === '') {
-                const topCountries = COUNTRIES.slice(0, 10);
-                dropdown.innerHTML = topCountries.map(country => 
+                // Show full alphabetically sorted list when field is empty and clicked
+                const allCountries = COUNTRIES;
+                dropdown.innerHTML = allCountries.map(country => 
                     `<div class="country-dropdown-item" onclick="selectCountry('${country.replace(/'/g, "\\'")}')">${escapeHtml(country)}</div>`
                 ).join('');
                 dropdown.classList.remove('hidden');
@@ -6755,6 +6761,21 @@
             const dropdown = document.getElementById('customer-business-type-dropdown');
             if (!input || !dropdown) return;
 
+            // Ensure business types are loaded from server
+            if (CUSTOMER_BUSINESS_TYPES.length === 0) {
+                fetch('/api/customer-business-types')
+                    .then(response => response.json())
+                    .then(types => {
+                        const sortedTypes = [...types].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+                        CUSTOMER_BUSINESS_TYPES = sortedTypes.map(t => t.name);
+                        filterCustomerBusinessTypes(); // Retry after loading
+                    })
+                    .catch(error => {
+                        console.error('Error loading customer business types:', error);
+                    });
+                return;
+            }
+
             const searchTerm = input.value.toLowerCase().trim();
             const filtered = CUSTOMER_BUSINESS_TYPES.filter(type =>
                 type.toLowerCase().includes(searchTerm)
@@ -6775,6 +6796,21 @@
             const input = document.getElementById('customer-business-type');
             const dropdown = document.getElementById('customer-business-type-dropdown');
             if (!input || !dropdown) return;
+
+            // Ensure business types are loaded from server
+            if (CUSTOMER_BUSINESS_TYPES.length === 0) {
+                fetch('/api/customer-business-types')
+                    .then(response => response.json())
+                    .then(types => {
+                        const sortedTypes = [...types].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+                        CUSTOMER_BUSINESS_TYPES = sortedTypes.map(t => t.name);
+                        showCustomerBusinessTypeDropdown(); // Retry after loading
+                    })
+                    .catch(error => {
+                        console.error('Error loading customer business types:', error);
+                    });
+                return;
+            }
 
             if (input.value.trim() === '') {
                 const topTypes = CUSTOMER_BUSINESS_TYPES.slice(0, 10);
