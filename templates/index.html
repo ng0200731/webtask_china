@@ -590,6 +590,41 @@
             flex: 1;
         }
 
+        .customer-contacts-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .customer-contacts-row .contact-input {
+            flex: 1;
+            min-width: 140px;
+        }
+
+        .customer-contacts-row .contact-row-add-btn,
+        .customer-contacts-row .contact-row-remove-btn {
+            padding: 6px 10px;
+            font-size: 14px;
+            line-height: 1;
+            border: 1px solid #000000;
+            background-color: #ffffff;
+            cursor: pointer;
+            min-width: 32px;
+        }
+
+        .customer-contacts-row .contact-row-remove-btn {
+            background-color: #dc3545;
+            color: #ffffff;
+        }
+
+        .customer-contacts-row .contact-row-add-btn:hover,
+        .customer-contacts-row .contact-row-remove-btn:hover {
+            background-color: #000000;
+            color: #ffffff;
+        }
+
         /* Ensure Create Customer area is clean white with even spacing */
         #create-customer-content .settings-section {
             background-color: #ffffff;
@@ -1244,7 +1279,7 @@
                 <div class="settings-section">
                     <h3 style="font-family: Arial, sans-serif; font-size: 18px; color: #000000; margin-bottom: 15px; border-bottom: 1px solid #000000; padding-bottom: 10px;">Create Customer</h3>
                     <div class="customer-form-grid">
-                        <!-- Row 1: Country | Company Name | Customer Name | Email -->
+                        <!-- Row 1: Country | Company Name -->
                         <div class="form-group">
                             <label for="customer-country">Country</label>
                             <div style="position: relative;">
@@ -1256,17 +1291,20 @@
                             <label for="company-name">Company Name</label>
                             <input type="text" id="company-name" placeholder="Enter company name">
                         </div>
-                        <div class="form-group">
-                            <label for="customer-name">Customer Name</label>
-                            <input type="text" id="customer-name" placeholder="Enter customer name">
-                        </div>
-                        <div class="form-group">
-                            <label for="customer-email-address">Email</label>
-                            <input type="email" id="customer-email-address" placeholder="customer@example.com" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}">
-                        </div>
-                        <div class="form-group">
-                            <label for="customer-tel">Tel</label>
-                            <input type="tel" id="customer-tel" placeholder="Enter telephone number">
+
+                        <!-- Row 2: Customer Name | Title | Tel | Email (+) -->
+                        <div class="form-group form-group-full">
+                            <label>Customer Contacts</label>
+                            <div id="customer-contacts-container">
+                                <div class="customer-contacts-row" data-primary="true">
+                                    <input type="text" id="customer-name" class="contact-input contact-name" placeholder="Customer name">
+                                    <input type="text" id="customer-title" class="contact-input contact-title" placeholder="Title">
+                                    <input type="tel" id="customer-tel" class="contact-input contact-tel" placeholder="Tel">
+                                    <input type="email" id="customer-email-address" class="contact-input contact-email" placeholder="customer@example.com" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}">
+                                    <button type="button" class="contact-row-add-btn" onclick="addCustomerContactRow()" title="Add another customer">+</button>
+                                </div>
+                                <div id="customer-extra-contacts-container"></div>
+                            </div>
                         </div>
 
                         <!-- Row 3: Web Site | Source (same line, divided evenly) -->
@@ -6640,39 +6678,98 @@
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
+        function addCustomerContactRow(initial = {}) {
+            const container = document.getElementById('customer-extra-contacts-container');
+            if (!container) return;
+            const rowHtml = `
+                <div class="customer-contacts-row">
+                    <input type="text" class="contact-input contact-name" placeholder="Customer name" value="${escapeHtml(initial.name || '')}">
+                    <input type="text" class="contact-input contact-title" placeholder="Title" value="${escapeHtml(initial.title || '')}">
+                    <input type="tel" class="contact-input contact-tel" placeholder="Tel" value="${escapeHtml(initial.tel || '')}">
+                    <input type="email" class="contact-input contact-email" placeholder="customer@example.com" value="${escapeHtml(initial.email || '')}">
+                    <button type="button" class="contact-row-remove-btn" onclick="removeCustomerContactRow(this)" title="Remove">−</button>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', rowHtml);
+        }
+
+        function removeCustomerContactRow(button) {
+            const row = button.closest('.customer-contacts-row');
+            if (row && row.parentElement) {
+                row.parentElement.removeChild(row);
+            }
+        }
+
+        function collectCustomerContacts() {
+            const contacts = [];
+            const primaryNameInput = document.getElementById('customer-name');
+            const primaryTitleInput = document.getElementById('customer-title');
+            const primaryTelInput = document.getElementById('customer-tel');
+            const primaryEmailInput = document.getElementById('customer-email-address');
+
+            if (primaryNameInput || primaryEmailInput) {
+                const name = (primaryNameInput && primaryNameInput.value || '').trim();
+                const email = (primaryEmailInput && primaryEmailInput.value || '').trim();
+                const title = (primaryTitleInput && primaryTitleInput.value || '').trim();
+                const tel = (primaryTelInput && primaryTelInput.value || '').trim();
+                if (name || email || title || tel) {
+                    contacts.push({ name, title, tel, email });
+                }
+            }
+
+            const extraContainer = document.getElementById('customer-extra-contacts-container');
+            if (extraContainer) {
+                const rows = extraContainer.querySelectorAll('.customer-contacts-row');
+                rows.forEach(row => {
+                    const name = (row.querySelector('.contact-name')?.value || '').trim();
+                    const title = (row.querySelector('.contact-title')?.value || '').trim();
+                    const tel = (row.querySelector('.contact-tel')?.value || '').trim();
+                    const email = (row.querySelector('.contact-email')?.value || '').trim();
+                    if (name || email || title || tel) {
+                        contacts.push({ name, title, tel, email });
+                    }
+                });
+            }
+
+            return contacts;
+        }
+
         function saveCustomer() {
-            const nameInput = document.getElementById('customer-name');
             const companyInput = document.getElementById('company-name');
-            const emailInput = document.getElementById('customer-email-address');
-            const telInput = document.getElementById('customer-tel');
             const countryInput = document.getElementById('customer-country');
             const websiteInput = document.getElementById('customer-website');
             const sourceInput = document.getElementById('customer-source');
             const remarkDiv = document.getElementById('customer-remark');
             
-            const name = (nameInput.value || '').trim();
             const companyName = (companyInput && companyInput.value || '').trim();
-            const emailAddress = (emailInput.value || '').trim();
-            const tel = (telInput && telInput.value || '').trim();
             const country = (countryInput.value || '').trim();
             const website = (websiteInput.value || '').trim();
             const source = (sourceInput && sourceInput.value || '').trim();
             const remark = remarkDiv ? remarkDiv.innerHTML.trim() : '';
 
-            if (!name) {
-                showCustomerStatus('Customer name is required.', true);
+            const contacts = collectCustomerContacts();
+            if (!contacts.length) {
+                showCustomerStatus('Please enter at least one customer name and email.', true);
                 return;
             }
-            if (!emailAddress) {
-                showCustomerStatus('Please enter an email address.', true);
-                return;
-            }
-            
-            // Email validation regex
+
+            // Validate contacts
             const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-            if (!emailRegex.test(emailAddress)) {
-                showCustomerStatus('Please enter a valid email address (e.g. customer@example.com).', true);
-                return;
+            for (const contact of contacts) {
+                const name = (contact.name || '').trim();
+                const emailAddress = (contact.email || '').trim();
+                if (!name) {
+                    showCustomerStatus('Customer name is required for each contact.', true);
+                    return;
+                }
+                if (!emailAddress) {
+                    showCustomerStatus('Please enter an email address for each contact.', true);
+                    return;
+                }
+                if (!emailRegex.test(emailAddress)) {
+                    showCustomerStatus('Please enter a valid email address (e.g. customer@example.com) for each contact.', true);
+                    return;
+                }
             }
 
             // Website validation (optional, but if provided, should be valid URL)
@@ -6683,41 +6780,63 @@
 
             showCustomerStatus('Saving customer...', false, 'info');
 
-            fetch('/api/customers', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    name,
-                    email_address: emailAddress,
-                    tel: tel || null,
-                    country: country || null,
-                    website: website && website.trim() !== '' ? website : null,
-                    source: source || null,
-                    remark: remark || null,
-                    attachments: customerAttachments.length > 0 ? JSON.stringify(customerAttachments) : null,
-                    company_name: companyName || null
-                })
-            })
-                .then(async response => {
+            const bodyBase = {
+                country: country || null,
+                website: website && website.trim() !== '' ? website : null,
+                source: source || null,
+                remark: remark || null,
+                attachments: customerAttachments.length > 0 ? JSON.stringify(customerAttachments) : null,
+                company_name: companyName || null
+            };
+
+            const requests = contacts.map(contact => {
+                const namePart = (contact.name || '').trim();
+                const titlePart = (contact.title || '').trim();
+                const combinedName = titlePart ? `${namePart} (${titlePart})` : namePart;
+                const telPart = (contact.tel || '').trim();
+                const emailAddress = (contact.email || '').trim();
+
+                return fetch('/api/customers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ...bodyBase,
+                        name: combinedName,
+                        email_address: emailAddress,
+                        tel: telPart || null
+                    })
+                }).then(async response => {
                     const data = await response.json();
                     if (!response.ok) {
                         throw new Error(data.error || 'Failed to save customer');
                     }
-                    nameInput.value = '';
+                });
+            });
+
+            Promise.all(requests)
+                .then(() => {
+                    const nameInput = document.getElementById('customer-name');
+                    const titleInput = document.getElementById('customer-title');
+                    const emailInput = document.getElementById('customer-email-address');
+                    const telInput = document.getElementById('customer-tel');
+                    if (nameInput) nameInput.value = '';
+                    if (titleInput) titleInput.value = '';
                     if (companyInput) companyInput.value = '';
-                    emailInput.value = '';
+                    if (emailInput) emailInput.value = '';
                     if (telInput) telInput.value = '';
                     if (countryInput) countryInput.value = '';
                     if (websiteInput) websiteInput.value = '';
                     if (sourceInput) sourceInput.value = '';
                     if (remarkDiv) remarkDiv.innerHTML = '';
+                    const extraContainer = document.getElementById('customer-extra-contacts-container');
+                    if (extraContainer) extraContainer.innerHTML = '';
                     customerAttachments = [];
                     updateAttachmentList();
                     const attachmentInput = document.getElementById('customer-attachment-input');
                     if (attachmentInput) attachmentInput.value = '';
-                    showCustomerStatus('Customer saved.', false);
+                    showCustomerStatus('Customer(s) saved.', false);
                     loadCustomers(false);
                 })
                 .catch(error => {
