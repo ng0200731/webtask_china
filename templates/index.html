@@ -7233,6 +7233,15 @@
             if (!Array.isArray(files) || files.length === 0) return;
             
             files.forEach(file => {
+                // Avoid adding exact duplicate files (same name and size), which can
+                // happen on some browsers when pasting from clipboard.
+                const isDuplicate = customerAttachments.some(att => 
+                    att.filename === file.name && att.size === file.size
+                );
+                if (isDuplicate) {
+                    return;
+                }
+
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const base64Data = e.target.result.split(',')[1];
