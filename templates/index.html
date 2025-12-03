@@ -929,6 +929,33 @@
             white-space: normal;
         }
 
+        .task-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            align-items: flex-start;
+        }
+
+        .task-editing-row {
+            background-color: #fff7e6;
+        }
+
+        .task-editing-row input,
+        .task-editing-row select,
+        .task-editing-row textarea {
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 12px;
+            border: 1px solid #000000;
+            padding: 6px;
+            border-radius: 3px;
+        }
+
+        .task-editing-row textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
         .task-modal-body textarea {
             flex: 1;
             width: 100%;
@@ -1820,11 +1847,15 @@
                         <label for="task-email">Email</label>
                         <input type="email" id="task-email" style="width: 100%; padding: 8px; border: 1px solid #000000;">
                     </div>
-                </div>
-                <div class="form-group">
-                    <label for="task-catalogue">Type</label>
-                    <select id="task-catalogue">
-                    </select>
+                    <div class="form-group">
+                        <label for="task-catalogue">Type</label>
+                        <select id="task-catalogue">
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="task-deadline">Deadline</label>
+                        <input type="date" id="task-deadline" style="width: 100%; padding: 8px; border: 1px solid #000000;">
+                    </div>
                 </div>
                 <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
                     <label for="task-notes">Template</label>
@@ -1836,6 +1867,53 @@
                 </div>
                 <div class="form-group" style="margin-top: 20px;">
                     <button class="form-button" onclick="submitTask()" style="width: 100%; padding: 15px; font-size: 16px;">Submit Task</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-task-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <div class="modal-title">Edit Task</div>
+                <button class="modal-close" onclick="closeEditTaskModal()">Close</button>
+            </div>
+            <div class="task-modal-body">
+                <div class="task-row">
+                    <div class="form-group">
+                        <label for="edit-task-sequence">Sequence</label>
+                        <input type="text" id="edit-task-sequence" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-task-customer">Customer</label>
+                        <input type="text" id="edit-task-customer" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-task-email">Email</label>
+                        <input type="email" id="edit-task-email" style="width: 100%; padding: 8px; border: 1px solid #000000;">
+                    </div>
+                </div>
+                <div class="task-row">
+                    <div class="form-group">
+                        <label for="edit-task-type">Type</label>
+                        <select id="edit-task-type"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-task-deadline">Deadline</label>
+                        <input type="date" id="edit-task-deadline" style="width: 100%; padding: 8px; border: 1px solid #000000;">
+                    </div>
+                </div>
+                <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
+                    <label for="edit-task-template">Template</label>
+                    <div id="edit-task-template-editor" style="height: 250px; background-color: #ffffff;"></div>
+                </div>
+                <div class="form-group">
+                    <label>Attachments</label>
+                    <div id="edit-task-attachments" class="attachment-list"></div>
+                </div>
+                <div class="form-group" style="display: flex; gap: 10px;">
+                    <button class="form-button" style="flex: 1;" onclick="saveTaskEdit()">Save Changes</button>
+                    <button class="form-button" style="flex: 1; background-color: #6c757d; color: #ffffff;" onclick="closeEditTaskModal()">Cancel</button>
                 </div>
             </div>
         </div>
@@ -1859,12 +1937,41 @@
         const taskSequenceInput = document.getElementById('task-sequence');
         const taskAttachmentsDiv = document.getElementById('task-attachments');
         const taskCatalogueSelect = document.getElementById('task-catalogue');
+        const taskDeadlineInput = document.getElementById('task-deadline');
         const taskNotesEditorDiv = document.getElementById('task-notes-editor');
+        const editTaskModal = document.getElementById('edit-task-modal');
+        const editTaskSequenceInput = document.getElementById('edit-task-sequence');
+        const editTaskCustomerInput = document.getElementById('edit-task-customer');
+        const editTaskEmailInput = document.getElementById('edit-task-email');
+        const editTaskTypeSelect = document.getElementById('edit-task-type');
+        const editTaskDeadlineInput = document.getElementById('edit-task-deadline');
+        const editTaskAttachmentsDiv = document.getElementById('edit-task-attachments');
+        const editTaskTemplateEditorDiv = document.getElementById('edit-task-template-editor');
         
         // Initialize Quill editor for task modal
         let taskNotesEditor = null;
         if (taskNotesEditorDiv) {
             taskNotesEditor = new Quill('#task-notes-editor', {
+                theme: 'snow',
+                modules: {
+                    toolbar: [
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'script': 'sub'}, { 'script': 'super' }],
+                        [{ 'indent': '-1'}, { 'indent': '+1' }],
+                        [{ 'align': [] }],
+                        ['link', 'image'],
+                        [{ 'table': true }],
+                        ['clean']
+                    ]
+                }
+            });
+        }
+
+        let editTaskEditor = null;
+        if (editTaskTemplateEditorDiv) {
+            editTaskEditor = new Quill('#edit-task-template-editor', {
                 theme: 'snow',
                 modules: {
                     toolbar: [
@@ -2769,6 +2876,9 @@
                 if (evt.key === 'Escape' && !taskModal.classList.contains('hidden')) {
                     closeTaskModal();
                 }
+                if (evt.key === 'Escape' && editTaskModal && !editTaskModal.classList.contains('hidden')) {
+                    closeEditTaskModal();
+                }
                 if (evt.key === 'Escape' && !attachmentModal.classList.contains('hidden')) {
                     closeAttachmentModal();
                 }
@@ -2908,11 +3018,17 @@
                                 <input type="email" id="task-form-email" required style="width: 100%; padding: 8px; border: 1px solid #000000;" placeholder="customer@example.com">
                             </div>
                         </div>
-                        <div class="form-group" style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Type</label>
-                            <select id="task-form-catalogue" required style="width: 100%; padding: 8px; border: 1px solid #000000;">
-                                <option value="">-- Select Type --</option>
-                            </select>
+                        <div class="task-row" style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+                            <div class="form-group" style="flex: 1; min-width: 200px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Type</label>
+                                <select id="task-form-catalogue" required style="width: 100%; padding: 8px; border: 1px solid #000000;">
+                                    <option value="">-- Select Type --</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1; min-width: 200px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Deadline</label>
+                                <input type="date" id="task-form-deadline" style="width: 100%; padding: 8px; border: 1px solid #000000;">
+                            </div>
                         </div>
                         <div class="form-group" style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: bold;">Template</label>
@@ -3175,6 +3291,7 @@
             const customerValueInput = document.getElementById('task-form-customer-value');
             const emailInput = document.getElementById('task-form-email');
             const catalogueSelect = document.getElementById('task-form-catalogue');
+            const deadlineInput = document.getElementById('task-form-deadline');
             
             if (!customerInput || !customerValueInput || !emailInput || !catalogueSelect) {
                 alert('Form fields not found');
@@ -3191,6 +3308,7 @@
             const customerName = customerInput.value;
             const email = emailInput.value.trim();
             const catalogue = catalogueSelect.value;
+            const deadline = deadlineInput ? deadlineInput.value.trim() : '';
             
             if (!customerEmailSuffix || !customerName) {
                 alert('Please select a customer');
@@ -3229,6 +3347,7 @@
                 email: email,
                 catalogue: catalogue,
                 template: template,
+                deadline: deadline || null,
                 attachments: (window.taskFormAttachments || []).map(att => ({
                     filename: att.filename,
                     content_type: att.content_type,
@@ -3335,6 +3454,22 @@
                 icon.textContent = '▶';
                 icon.style.transform = 'rotate(0deg)';
             }
+        }
+
+        function ensureTaskTypesLoaded() {
+            if (taskTypesCache && taskTypesCache.length > 0) {
+                return Promise.resolve(taskTypesCache);
+            }
+            return fetch('/api/task-types')
+                .then(response => response.json())
+                .then(types => {
+                    taskTypesCache = types;
+                    return taskTypesCache;
+                })
+                .catch(error => {
+                    console.error('Error loading task types:', error);
+                    return [];
+                });
         }
 
         function loadTaskTypes() {
@@ -4808,6 +4943,9 @@
             loadTaskTypesForDropdown();
 
             taskSequenceInput.value = email.sequence || 'N/A';
+            if (taskDeadlineInput) {
+                taskDeadlineInput.value = '';
+            }
             // Set default value after types are loaded
             setTimeout(() => {
                 if (taskTypesCache && taskTypesCache.length > 0) {
@@ -4867,6 +5005,9 @@
             // Clear attachments display
             if (taskAttachmentsDiv) {
                 taskAttachmentsDiv.innerHTML = '';
+            }
+            if (taskDeadlineInput) {
+                taskDeadlineInput.value = '';
             }
             window.taskModalAttachments = [];
             window.taskModalEmailIndex = null;
@@ -4928,6 +5069,7 @@
             const customerEmailSuffix = customerValueInput ? customerValueInput.value : '';
             const customer = taskCustomerSelect ? taskCustomerSelect.value : '';
             const email = taskEmailInput.value;
+            const deadline = taskDeadlineInput ? (taskDeadlineInput.value || '').trim() : '';
             
             // Validate required fields
             if (!catalogue || catalogue === '') {
@@ -4947,7 +5089,8 @@
                 email: email,
                 catalogue: catalogue,
                 template: template,
-                attachments: window.taskModalAttachments || []
+                attachments: window.taskModalAttachments || [],
+                deadline: deadline || null
             };
             
             // Save to database
@@ -4994,6 +5137,120 @@
             loadTaskList();
         }
 
+        let inlineTaskEditId = null;
+
+        function formatDateForInput(dateStr) {
+            if (!dateStr) return '';
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                return dateStr;
+            }
+            const parsed = new Date(dateStr);
+            if (Number.isNaN(parsed.getTime())) {
+                return '';
+            }
+            const month = String(parsed.getMonth() + 1).padStart(2, '0');
+            const day = String(parsed.getDate()).padStart(2, '0');
+            return `${parsed.getFullYear()}-${month}-${day}`;
+        }
+
+        function escapeTextareaContent(value) {
+            return (value || '').replace(/<\/textarea>/gi, '&lt;/textarea&gt;');
+        }
+
+        function getTaskTypeOptions(selectedValue) {
+            const types = [...(taskTypesCache || [])].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            const options = types.map(type => {
+                const name = type.name || '';
+                const isSelected = name === selectedValue ? ' selected' : '';
+                return `<option value="${escapeHtml(name)}"${isSelected}>${escapeHtml(name)}</option>`;
+            }).join('');
+            return `<option value="">-- Select Type --</option>${options}`;
+        }
+
+        function renderTaskRow(task, isEditing = false) {
+            const attachments = task.attachments || [];
+            const attachmentsText = attachments.map(att => att.filename || 'attachment').join(', ');
+            const companyName = task.company_name || '';
+            const createdAtDisplay = task.created_at ? escapeHtml(new Date(task.created_at).toLocaleString()) : '';
+            const lastUpdatedDisplay = task.updated_at ? escapeHtml(new Date(task.updated_at).toLocaleString()) : '';
+            const rowAttributes = [
+                `id="task-row-${task.id}"`,
+                `data-task-id="${task.id}"`,
+                `data-sequence="${escapeHtml(task.sequence || '')}"`,
+                `data-customer="${escapeHtml(task.customer || '')}"`,
+                `data-company_name="${escapeHtml(companyName)}"`,
+                `data-email="${escapeHtml(task.email || '')}"`,
+                `data-catalogue="${escapeHtml(task.catalogue || '')}"`,
+                `data-template="${escapeHtml(task.template || '')}"`,
+                `data-deadline="${escapeHtml(task.deadline || '')}"`,
+                `data-created_at="${escapeHtml(task.created_at || '')}"`,
+                `data-updated_at="${escapeHtml(task.updated_at || '')}"`,
+                `data-attachments="${escapeHtml(attachmentsText)}"`
+            ].join(' ');
+
+            if (!isEditing) {
+                return `
+                    <tr ${rowAttributes}>
+                        <td>${escapeHtml(task.sequence || '')}</td>
+                        <td>${escapeHtml(task.customer || '')}</td>
+                        <td>${escapeHtml(companyName)}</td>
+                        <td>${escapeHtml(task.email || '')}</td>
+                        <td>${escapeHtml(task.catalogue || '')}</td>
+                        <td class="task-template-cell" title="${escapeHtml(task.template || '')}">
+                            ${task.template || ''}
+                        </td>
+                        <td>${task.deadline ? escapeHtml(task.deadline) : ''}</td>
+                        <td>${createdAtDisplay}</td>
+                        <td>${lastUpdatedDisplay}</td>
+                        <td>${renderTaskAttachments(task)}</td>
+                        <td>
+                            <div class="task-actions">
+                                <button class="form-button" onclick="openTaskEditModal(${task.id})" style="font-size: 12px; padding: 5px 10px;">Edit</button>
+                                <button class="form-button" onclick="deleteTask(${task.id})" style="font-size: 12px; padding: 5px 10px; background-color: #dc3545; color: #ffffff;">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            const typeOptions = getTaskTypeOptions(task.catalogue || '');
+            return `
+                <tr class="task-editing-row" ${rowAttributes}>
+                    <td>${escapeHtml(task.sequence || '')}</td>
+                    <td><input type="text" class="inline-task-input" data-field="customer" value="${escapeHtml(task.customer || '')}"></td>
+                    <td><input type="text" class="inline-task-input" data-field="company_name" value="${escapeHtml(companyName)}" readonly></td>
+                    <td><input type="text" class="inline-task-input" data-field="email" value="${escapeHtml(task.email || '')}"></td>
+                    <td>
+                        <select class="inline-task-type-select" data-field="catalogue">
+                            ${typeOptions}
+                        </select>
+                    </td>
+                    <td>
+                        <textarea class="inline-task-template-input" data-field="template" placeholder="Enter template...">${escapeTextareaContent(task.template || '')}</textarea>
+                    </td>
+                    <td><input type="date" class="inline-task-input" data-field="deadline" value="${formatDateForInput(task.deadline || '')}"></td>
+                    <td>${createdAtDisplay}</td>
+                    <td>${lastUpdatedDisplay}</td>
+                    <td>${renderTaskAttachments(task)}</td>
+                    <td>
+                        <div class="task-actions">
+                            <button class="form-button" style="font-size: 12px; padding: 5px 10px; background-color: #28a745; color: #ffffff;" onclick="saveTaskEdit(${task.id})">Save</button>
+                            <button class="form-button" style="font-size: 12px; padding: 5px 10px; background-color: #6c757d; color: #ffffff;" onclick="cancelInlineTaskEdit()">Cancel</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function refreshTaskRow(taskId, isEditing = false) {
+            const tasks = window.taskListCache || [];
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            const row = document.querySelector(`#task-table-body tr[data-task-id="${taskId}"]`);
+            if (!row) return;
+            row.outerHTML = renderTaskRow(task, isEditing);
+        }
+
         function loadTaskList() {
             const container = document.getElementById('task-list-container');
             if (!container) return;
@@ -5008,6 +5265,7 @@
                     } else {
                         const tasks = data.tasks || [];
                         window.taskListCache = tasks;
+                        inlineTaskEditId = null;
                         if (tasks.length === 0) {
                             container.innerHTML = '<div class="message info">No tasks found.</div>';
                         } else {
@@ -5024,7 +5282,9 @@
                                             <th>Email</th>
                                             <th>Type</th>
                                             <th>Template</th>
+                                            <th>Deadline</th>
                                             <th>Created At</th>
+                                            <th>Last Updated</th>
                                             <th>Attachments</th>
                                             <th>Delete</th>
                                         </tr>
@@ -5035,42 +5295,15 @@
                                             <th><input type="text" class="task-filter-input" data-field="email" placeholder="Filter email"></th>
                                             <th><input type="text" class="task-filter-input" data-field="catalogue" placeholder="Filter type"></th>
                                             <th><input type="text" class="task-filter-input" data-field="template" placeholder="Filter template"></th>
+                                            <th><input type="text" class="task-filter-input" data-field="deadline" placeholder="Filter deadline"></th>
                                             <th><input type="text" class="task-filter-input" data-field="created_at" placeholder="Filter date"></th>
+                                            <th><input type="text" class="task-filter-input" data-field="updated_at" placeholder="Filter last updated"></th>
                                             <th><input type="text" class="task-filter-input" data-field="attachments" placeholder="Filter attachments"></th>
                                             <th></th>
                                         </tr>
                                     </thead>
                                     <tbody id="task-table-body">
-                                        ${tasks.map(task => {
-                                            const attachmentsText = (task.attachments || []).map(att => att.filename || 'attachment').join(', ');
-                                            const companyName = task.company_name || '';
-                                            return `
-                                                <tr
-                                                    data-sequence="${escapeHtml(task.sequence || '')}"
-                                                    data-customer="${escapeHtml(task.customer || '')}"
-                                                    data-company_name="${escapeHtml(companyName)}"
-                                                    data-email="${escapeHtml(task.email || '')}"
-                                                    data-catalogue="${escapeHtml(task.catalogue || '')}"
-                                                    data-template="${escapeHtml(task.template || '')}"
-                                                    data-created_at="${escapeHtml(task.created_at || '')}"
-                                                    data-attachments="${escapeHtml(attachmentsText)}"
-                                                >
-                                                    <td>${escapeHtml(task.sequence || '')}</td>
-                                                    <td>${escapeHtml(task.customer || '')}</td>
-                                                    <td>${escapeHtml(companyName)}</td>
-                                                    <td>${escapeHtml(task.email || '')}</td>
-                                                    <td>${escapeHtml(task.catalogue || '')}</td>
-                                                    <td class="task-template-cell" title="${escapeHtml(task.template || '')}">
-                                                        ${task.template || ''}
-                                                    </td>
-                                                    <td>${task.created_at ? escapeHtml(new Date(task.created_at).toLocaleString()) : ''}</td>
-                                                    <td>${renderTaskAttachments(task)}</td>
-                                                    <td>
-                                                        <button class="form-button" onclick="deleteTask(${task.id})" style="font-size: 12px; padding: 5px 10px;">Delete</button>
-                                                    </td>
-                                                </tr>
-                                            `;
-                                        }).join('')}
+                                        ${tasks.map(task => renderTaskRow(task)).join('')}
                                     </tbody>
                                 </table>
                             `;
@@ -5108,6 +5341,175 @@
             })
             .catch(error => {
                 alert('Error deleting task: ' + error.message);
+            });
+        }
+
+        function renderEditTaskAttachments(attachments) {
+            if (!editTaskAttachmentsDiv) return;
+            if (!attachments || attachments.length === 0) {
+                editTaskAttachmentsDiv.innerHTML = '<div style="padding: 10px; color: #666;">No attachments</div>';
+                return;
+            }
+            editTaskAttachmentsDiv.innerHTML = attachments.map((att, idx) => {
+                const filename = escapeHtml(att.filename || `attachment-${idx + 1}`);
+                const contentType = att.content_type || 'application/octet-stream';
+                const dataUrl = att.data ? `data:${contentType};base64,${att.data}` : null;
+                return `
+                    <div class="task-attachment-entry">
+                        <div class="task-attachment-info">
+                            <div class="task-attachment-filename">${filename}</div>
+                            <div class="task-attachment-size" style="font-size: 12px; color: #666;">${contentType}</div>
+                        </div>
+                        <div class="task-attachment-actions" style="display: flex; gap: 8px;">
+                            ${dataUrl ? `<a class="form-button" style="font-size: 12px;" href="${dataUrl}" download="${filename}">Download</a>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function populateEditTaskTypeSelect(selectedValue) {
+            if (!editTaskTypeSelect) return;
+            const sortedTypes = [...(taskTypesCache || [])].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            const options = sortedTypes.map(type => 
+                `<option value="${escapeHtml(type.name)}">${escapeHtml(type.name)}</option>`
+            ).join('');
+            editTaskTypeSelect.innerHTML = `<option value="">-- Select Type --</option>${options}`;
+            editTaskTypeSelect.value = selectedValue || '';
+        }
+
+        function cancelInlineTaskEdit() {
+            if (!inlineTaskEditId) return;
+            refreshTaskRow(inlineTaskEditId, false);
+            inlineTaskEditId = null;
+        }
+
+        function openTaskEditModal(taskId) {
+            const tasks = window.taskListCache || [];
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) {
+                alert('Task not found');
+                return;
+            }
+            ensureTaskTypesLoaded().then(() => {
+                if (inlineTaskEditId && inlineTaskEditId !== taskId) {
+                    cancelInlineTaskEdit();
+                }
+                inlineTaskEditId = taskId;
+                refreshTaskRow(taskId, true);
+                const textarea = document.querySelector(`#task-table-body tr[data-task-id="${taskId}"] .inline-task-template-input`);
+                if (textarea) {
+                    textarea.focus();
+                }
+            }).catch(() => {
+                alert('Unable to load task types');
+            });
+        }
+
+        function closeEditTaskModal() {
+            cancelInlineTaskEdit();
+            if (editTaskModal) {
+                editTaskModal.classList.add('hidden');
+                editTaskModal.dataset.taskId = '';
+            }
+        }
+
+        function saveTaskEdit(taskId = null) {
+            const inlineId = typeof taskId === 'number' ? taskId : inlineTaskEditId;
+            if (inlineId) {
+                const inlineRow = document.querySelector(`#task-table-body tr[data-task-id="${inlineId}"]`);
+                if (inlineRow && inlineRow.classList.contains('task-editing-row')) {
+                    const typeSelect = inlineRow.querySelector('.inline-task-type-select');
+                    const templateInput = inlineRow.querySelector('.inline-task-template-input');
+                    const emailInput = inlineRow.querySelector('.inline-task-input[data-field="email"]');
+                    const customerInput = inlineRow.querySelector('.inline-task-input[data-field="customer"]');
+                    const deadlineInput = inlineRow.querySelector('.inline-task-input[data-field="deadline"]');
+
+                    const catalogue = typeSelect ? typeSelect.value : '';
+                    if (!catalogue) {
+                        alert('Please select a Type');
+                        return;
+                    }
+                    const template = templateInput ? templateInput.value.trim() : '';
+                    if (!template || template === '<p><br></p>') {
+                        alert('Please enter Template content');
+                        return;
+                    }
+
+                    const payload = {
+                        catalogue,
+                        template,
+                        email: emailInput ? emailInput.value.trim() : '',
+                        customer: customerInput ? customerInput.value.trim() : '',
+                        deadline: deadlineInput ? (deadlineInput.value || null) : null
+                    };
+
+                    fetch(`/api/tasks/${inlineId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            alert('Error updating task: ' + data.error);
+                        } else {
+                            alert('Task updated successfully!');
+                            inlineTaskEditId = null;
+                            loadTaskList();
+                        }
+                    })
+                    .catch(error => {
+                        alert('Error updating task: ' + error.message);
+                    });
+                    return;
+                }
+            }
+
+            if (!editTaskModal) {
+                alert('No task selected');
+                return;
+            }
+
+            const modalTaskId = editTaskModal.dataset.taskId;
+            if (!modalTaskId) {
+                alert('No task selected');
+                return;
+            }
+            const catalogue = editTaskTypeSelect ? editTaskTypeSelect.value : '';
+            if (!catalogue) {
+                alert('Please select a Type');
+                return;
+            }
+            const template = editTaskEditor ? editTaskEditor.root.innerHTML : '';
+            if (!template || template.trim() === '' || template === '<p><br></p>') {
+                alert('Please enter Template content');
+                return;
+            }
+            const payload = {
+                catalogue,
+                template,
+                email: editTaskEmailInput ? editTaskEmailInput.value.trim() : '',
+                customer: editTaskCustomerInput ? editTaskCustomerInput.value.trim() : '',
+                deadline: editTaskDeadlineInput ? (editTaskDeadlineInput.value || null) : null
+            };
+            fetch(`/api/tasks/${modalTaskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error updating task: ' + data.error);
+                } else {
+                    alert('Task updated successfully!');
+                    closeEditTaskModal();
+                    loadTaskList();
+                }
+            })
+            .catch(error => {
+                alert('Error updating task: ' + error.message);
             });
         }
 
@@ -5166,19 +5568,25 @@
             }
             return attachments.map((att, idx) => {
                 const filename = escapeHtml(att.filename || 'attachment');
+                const caption = escapeHtml(att.caption || att.filename || 'Attachment');
                 const contentType = att.content_type || 'application/octet-stream';
                 const isImage = isImageContent(att.filename, contentType);
                 const isPDF = isPDFContent(att.filename, contentType);
                 const isText = isTextContent(att.filename, contentType);
                 const isViewable = Boolean(isImage || isPDF || isText);
-                const viewLink = isViewable
-                    ? `<span class="attachment-view-link" onclick="openTaskListAttachment(${task.id}, ${idx})" style="text-decoration: underline; cursor: pointer; color: #0066cc;">${filename}</span>`
-                    : `<span>${filename}</span>`;
-                const downloadLink = `<a class="attachment-download-link" href="data:${contentType};base64,${att.data}" download="${escapeHtml(att.filename || `attachment-${idx + 1}`)}">📎</a>`;
+                const thumbHtml = isImage
+                    ? `<img src="data:${contentType};base64,${att.data}" alt="${filename}" class="task-attachment-thumb" onclick="openTaskListAttachment(${task.id}, ${idx})">`
+                    : `<div class="task-attachment-thumb" style="display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;" onclick="openTaskListAttachment(${task.id}, ${idx})">📄</div>`;
+                const downloadLink = `<a class="attachment-download-link" href="data:${contentType};base64,${att.data}" download="${escapeHtml(att.filename || `attachment-${idx + 1}`)}" title="Download">📎</a>`;
                 return `
-                    <div class="task-attachment-entry">
-                        ${viewLink}
-                        ${downloadLink}
+                    <div class="task-attachment-entry" style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;">
+                        ${thumbHtml}
+                        <div style="display:flex;flex-direction:column;gap:2px;max-width:140px;">
+                            <span class="attachment-caption-text" style="font-size:11px;cursor:pointer;color:#0066cc;" onclick="openTaskListAttachment(${task.id}, ${idx})">${caption}</span>
+                            <div>
+                                ${downloadLink}
+                            </div>
+                        </div>
                     </div>
                 `;
             }).join('');

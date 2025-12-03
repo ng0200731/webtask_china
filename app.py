@@ -226,9 +226,20 @@ def initialize_database():
                 catalogue TEXT NOT NULL,
                 template TEXT NOT NULL,
                 attachments TEXT,
-                created_at TEXT DEFAULT (datetime('now'))
+                deadline TEXT,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
             )
         """)
+        try:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN deadline TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        cursor.execute("PRAGMA table_info(tasks)")
+        task_columns = {row['name'] for row in cursor.fetchall()}
+        if 'updated_at' not in task_columns:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN updated_at TEXT")
+            cursor.execute("UPDATE tasks SET updated_at = created_at WHERE updated_at IS NULL")
         # Countries table for dropdown options
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS countries (
@@ -1773,8 +1784,18 @@ def handle_tasks():
             connection = get_db_connection()
             cursor = connection.cursor()
             cursor.execute("""
-                SELECT t.id, t.sequence, t.customer, t.email, t.catalogue, t.template, t.attachments, t.created_at,
-                       c.company_name
+                SELECT 
+                    t.id,
+                    t.sequence,
+                    t.customer,
+                    t.email,
+                    t.catalogue,
+                    t.template,
+                    t.attachments,
+                    t.deadline,
+                    t.created_at,
+                    t.updated_at,
+                    c.company_name
                 FROM tasks t
                 LEFT JOIN customers c ON (c.name = t.customer OR c.email_suffix = t.email)
                 ORDER BY datetime(t.created_at) DESC
@@ -1792,15 +1813,17 @@ def handle_tasks():
                     attachments = []
                 
                 tasks.append({
-                    'id': row[0],
-                    'sequence': row[1],
-                    'customer': row[2],
-                    'email': row[3],
-                    'catalogue': row[4],
-                    'template': row[5],
+                    'id': row['id'],
+                    'sequence': row['sequence'],
+                    'customer': row['customer'],
+                    'email': row['email'],
+                    'catalogue': row['catalogue'],
+                    'template': row['template'],
                     'attachments': attachments,
-                    'created_at': row[7],
-                    'company_name': row[8] if len(row) > 8 else None
+                    'deadline': row['deadline'],
+                    'created_at': row['created_at'],
+                    'updated_at': row['updated_at'],
+                    'company_name': row['company_name']
                 })
             
             return jsonify({'tasks': tasks})
@@ -1815,6 +1838,9 @@ def handle_tasks():
         catalogue = data.get('catalogue', '').strip()
         template = data.get('template', '').strip()
         attachments = data.get('attachments', [])
+        deadline = data.get('deadline')
+        if isinstance(deadline, str):
+            deadline = deadline.strip() or None
         
         if not catalogue:
             return jsonify({'error': 'Catalogue is required'}), 400
@@ -1828,11 +1854,15 @@ def handle_tasks():
             connection = get_db_connection()
             cursor = connection.cursor()
             cursor.execute("""
-                INSERT INTO tasks (sequence, customer, email, catalogue, template, attachments, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-            """, (sequence, customer, email, catalogue, template, attachments_json))
+                INSERT INTO tasks (sequence, customer, email, catalogue, template, attachments, deadline, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            """, (sequence, customer, email, catalogue, template, attachments_json, deadline))
             connection.commit()
             task_id = cursor.lastrowid
+            cursor.execute("SELECT created_at, updated_at FROM tasks WHERE id = ?", (task_id,))
+            timestamps_row = cursor.fetchone()
+            created_at_value = timestamps_row['created_at'] if timestamps_row else None
+            updated_at_value = timestamps_row['updated_at'] if timestamps_row else None
             cursor.close()
             connection.close()
             
@@ -1843,28 +1873,89 @@ def handle_tasks():
                 'email': email,
                 'catalogue': catalogue,
                 'template': template,
-                'attachments': attachments
+                'attachments': attachments,
+                'deadline': deadline,
+                'created_at': created_at_value,
+                'updated_at': updated_at_value
             }), 201
         except Exception as exc:
             return jsonify({'error': f'Database error: {str(exc)}'}), 500
 
 
-@app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
-def delete_task(task_id):
-    """Delete a task by ID"""
+@app.route('/api/tasks/<int:task_id>', methods=['PUT', 'DELETE'])
+def handle_single_task(task_id):
+    """Update or delete a task by ID"""
+    if request.method == 'DELETE':
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+            connection.commit()
+            deleted = cursor.rowcount > 0
+            cursor.close()
+            connection.close()
+            
+            if deleted:
+                return jsonify({'status': 'deleted', 'id': task_id})
+            else:
+                return jsonify({'error': 'Task not found'}), 404
+        except Exception as exc:
+            return jsonify({'error': f'Database error: {str(exc)}'}), 500
+    
+    # PUT - update task
     try:
+        data = request.get_json() or {}
+        catalogue = (data.get('catalogue') or '').strip()
+        template = (data.get('template') or '').strip()
+        email = (data.get('email') or '').strip()
+        customer = (data.get('customer') or '').strip()
+        attachments = data.get('attachments')
+        deadline = (data.get('deadline') or '').strip() or None
+        
+        if not catalogue:
+            return jsonify({'error': 'Catalogue is required'}), 400
+        if not template:
+            return jsonify({'error': 'Template is required'}), 400
+        
+        attachments_json = None
+        if attachments is not None:
+            try:
+                attachments_json = json.dumps(attachments)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Invalid attachments format'}), 400
+        
         connection = get_db_connection()
         cursor = connection.cursor()
-        cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        
+        update_fields = [
+            ('catalogue', catalogue),
+            ('template', template),
+            ('deadline', deadline)
+        ]
+        
+        if email:
+            update_fields.append(('email', email))
+        if customer:
+            update_fields.append(('customer', customer))
+        if attachments_json is not None:
+            update_fields.append(('attachments', attachments_json))
+        
+        set_clause = ', '.join([f"{field} = ?" for field, _ in update_fields])
+        if set_clause:
+            set_clause = f"{set_clause}, updated_at = datetime('now')"
+        values = [value for _, value in update_fields]
+        values.append(task_id)
+        
+        cursor.execute(f"UPDATE tasks SET {set_clause} WHERE id = ?", values)
         connection.commit()
-        deleted = cursor.rowcount > 0
+        updated = cursor.rowcount > 0
         cursor.close()
         connection.close()
         
-        if deleted:
-            return jsonify({'status': 'deleted', 'id': task_id})
-        else:
+        if not updated:
             return jsonify({'error': 'Task not found'}), 404
+        
+        return jsonify({'status': 'updated', 'id': task_id})
     except Exception as exc:
         return jsonify({'error': f'Database error: {str(exc)}'}), 500
 
