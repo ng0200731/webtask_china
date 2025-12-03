@@ -1194,23 +1194,23 @@
                 <div class="settings-section">
                     <h3 style="font-family: Arial, sans-serif; font-size: 18px; color: #000000; margin-bottom: 15px; border-bottom: 1px solid #000000; padding-bottom: 10px;">Create Customer</h3>
                     <div class="customer-form-grid">
-                        <!-- Row 1: Country | Company Name -->
+                        <!-- Row 1: Company Name | Customer Name -->
+                        <div class="form-group">
+                            <label for="company-name">Company Name</label>
+                            <input type="text" id="company-name" placeholder="Enter company name">
+                        </div>
+                        <div class="form-group">
+                            <label for="customer-name">Customer Name</label>
+                            <input type="text" id="customer-name" placeholder="Enter customer name">
+                        </div>
+
+                        <!-- Row 2: Country | Email -->
                         <div class="form-group">
                             <label for="customer-country">Country</label>
                             <div style="position: relative;">
                                 <input type="text" id="customer-country" placeholder="Search or select country" autocomplete="off" oninput="filterCountries()" onfocus="showCountryDropdown()" onblur="setTimeout(() => hideCountryDropdown(), 200)">
                                 <div id="country-dropdown" class="country-dropdown hidden"></div>
                             </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="company-name">Company Name</label>
-                            <input type="text" id="company-name" placeholder="Enter company name">
-                        </div>
-
-                        <!-- Row 2: Customer Name | Email -->
-                        <div class="form-group">
-                            <label for="customer-name">Customer Name</label>
-                            <input type="text" id="customer-name" placeholder="Enter customer name">
                         </div>
                         <div class="form-group">
                             <label for="customer-email-address">Email</label>
@@ -1257,8 +1257,8 @@
                     <table class="customer-table">
                         <thead>
                             <tr>
-                                <th style="width: 10%;">Name</th>
                                 <th style="width: 12%;">Company Name</th>
+                                <th style="width: 10%;">Name</th>
                                 <th style="width: 13%;">Email Address</th>
                                 <th style="width: 9%;">Country</th>
                                 <th style="width: 11%;">Website</th>
@@ -1325,9 +1325,11 @@
                         <span>Manage Task Type Dropdown</span>
                     </h3>
                     <div id="task-type-dropdown-content" style="display: none;">
-                        <div style="margin-bottom: 20px;">
-                            <input type="text" id="new-task-type-input" placeholder="Enter new task type name" style="width: 300px; padding: 8px; border: 1px solid #000000; margin-right: 10px;" onkeypress="if(event.key === 'Enter') addTaskType()">
+                        <div style="margin-bottom: 20px; position: relative;">
+                            <input type="text" id="new-task-type-input" placeholder="Enter new task type name" style="width: 300px; padding: 8px; border: 1px solid #000000; margin-right: 10px;" onkeypress="if(event.key === 'Enter') addTaskType()" oninput="showTaskTypeSuggestions()" onfocus="showTaskTypeSuggestions()" onblur="setTimeout(() => hideTaskTypeSuggestions(), 200)">
+                            <div id="task-type-suggestions" class="country-dropdown hidden" style="position: absolute; top: 100%; left: 0; width: 300px; z-index: 1000;"></div>
                             <button class="form-button" onclick="addTaskType()" style="padding: 8px 20px;">Add New Type</button>
+                            <div id="task-type-duplicate-warning" style="color: #dc3545; font-size: 12px; margin-top: 5px; display: none;"></div>
                         </div>
                         <div id="task-types-list" style="border: 1px solid #000000; padding: 15px; background-color: #ffffff;">
                             <div style="text-align: center; padding: 20px; color: #666;">Loading task types...</div>
@@ -1338,9 +1340,11 @@
                         <span>Manage Country Dropdown (Create Customer)</span>
                     </h3>
                     <div id="country-dropdown-content" style="display: none;">
-                        <div style="margin-bottom: 20px;">
-                            <input type="text" id="new-country-input" placeholder="Enter new country name" style="width: 300px; padding: 8px; border: 1px solid #000000; margin-right: 10px;" onkeypress="if(event.key === 'Enter') addCountry()">
+                        <div style="margin-bottom: 20px; position: relative;">
+                            <input type="text" id="new-country-input" placeholder="Enter new country name" style="width: 300px; padding: 8px; border: 1px solid #000000; margin-right: 10px;" onkeypress="if(event.key === 'Enter') addCountry()" oninput="showCountrySuggestions()" onfocus="showCountrySuggestions()" onblur="setTimeout(() => hideCountrySuggestions(), 200)">
+                            <div id="country-suggestions" class="country-dropdown hidden" style="position: absolute; top: 100%; left: 0; width: 300px; z-index: 1000;"></div>
                             <button class="form-button" onclick="addCountry()" style="padding: 8px 20px;">Add New Country</button>
+                            <div id="country-duplicate-warning" style="color: #dc3545; font-size: 12px; margin-top: 5px; display: none;"></div>
                         </div>
                         <div id="countries-list" style="border: 1px solid #000000; padding: 15px; background-color: #ffffff;">
                             <div style="text-align: center; padding: 20px; color: #666;">Loading countries...</div>
@@ -2016,29 +2020,8 @@
             });
         }
 
-        // Country list
-        const COUNTRIES = [
-            'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia', 'Austria',
-            'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bhutan',
-            'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cambodia',
-            'Cameroon', 'Canada', 'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica',
-            'Croatia', 'Cuba', 'Cyprus', 'Czech Republic', 'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic', 'Ecuador', 'Egypt',
-            'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini', 'Ethiopia', 'Fiji', 'Finland', 'France', 'Gabon',
-            'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau', 'Guyana',
-            'Haiti', 'Honduras', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Israel',
-            'Italy', 'Jamaica', 'Japan', 'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati', 'Korea, North', 'Korea, South', 'Kuwait',
-            'Kyrgyzstan', 'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg',
-            'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritania', 'Mauritius', 'Mexico',
-            'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar', 'Namibia', 'Nauru',
-            'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Macedonia', 'Norway', 'Oman', 'Pakistan',
-            'Palau', 'Palestine', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Poland', 'Portugal', 'Qatar',
-            'Romania', 'Russia', 'Rwanda', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa', 'San Marino', 'Sao Tome and Principe', 'Saudi Arabia',
-            'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Africa',
-            'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria', 'Taiwan', 'Tajikistan',
-            'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan', 'Tuvalu',
-            'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Vatican City', 'Venezuela',
-            'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe'
-        ].sort();
+        // Country list - will be populated from database
+        let COUNTRIES = [];
         const PROVIDER_LABELS = {
             gmail: 'Gmail',
             qq: 'QQ',
@@ -3362,12 +3345,91 @@
             `).join('');
         }
 
+        function showTaskTypeSuggestions() {
+            const input = document.getElementById('new-task-type-input');
+            const suggestionsDiv = document.getElementById('task-type-suggestions');
+            const warningDiv = document.getElementById('task-type-duplicate-warning');
+            
+            if (!input || !suggestionsDiv) return;
+            
+            const query = input.value.trim().toLowerCase();
+            
+            if (!query) {
+                suggestionsDiv.classList.add('hidden');
+                warningDiv.style.display = 'none';
+                return;
+            }
+            
+            // Check for duplicates
+            const existingTypes = taskTypesCache || [];
+            const isDuplicate = existingTypes.some(type => 
+                type.name.toLowerCase() === query
+            );
+            
+            if (isDuplicate) {
+                suggestionsDiv.classList.add('hidden');
+                warningDiv.textContent = 'This task type already exists!';
+                warningDiv.style.display = 'block';
+                input.style.borderColor = '#dc3545';
+                return;
+            } else {
+                warningDiv.style.display = 'none';
+                input.style.borderColor = '#000000';
+            }
+            
+            // Show similar suggestions
+            const similar = existingTypes
+                .filter(type => type.name.toLowerCase().includes(query))
+                .slice(0, 5);
+            
+            if (similar.length === 0) {
+                suggestionsDiv.classList.add('hidden');
+                return;
+            }
+            
+            suggestionsDiv.innerHTML = similar.map(type => 
+                `<div class="country-dropdown-item" onclick="selectTaskTypeSuggestion('${type.name.replace(/'/g, "\\'")}')">${escapeHtml(type.name)}</div>`
+            ).join('');
+            suggestionsDiv.classList.remove('hidden');
+        }
+
+        function hideTaskTypeSuggestions() {
+            const suggestionsDiv = document.getElementById('task-type-suggestions');
+            if (suggestionsDiv) {
+                suggestionsDiv.classList.add('hidden');
+            }
+        }
+
+        function selectTaskTypeSuggestion(name) {
+            const input = document.getElementById('new-task-type-input');
+            if (input) {
+                input.value = name;
+            }
+            hideTaskTypeSuggestions();
+            showTaskTypeSuggestions(); // Re-check for duplicates
+        }
+
         function addTaskType() {
             const input = document.getElementById('new-task-type-input');
+            const warningDiv = document.getElementById('task-type-duplicate-warning');
             const name = input.value.trim();
             
             if (!name) {
                 alert('Please enter a task type name');
+                return;
+            }
+            
+            // Check for duplicates before submitting
+            const existingTypes = taskTypesCache || [];
+            const isDuplicate = existingTypes.some(type => 
+                type.name.toLowerCase() === name.toLowerCase()
+            );
+            
+            if (isDuplicate) {
+                warningDiv.textContent = 'This task type already exists!';
+                warningDiv.style.display = 'block';
+                input.style.borderColor = '#dc3545';
+                input.focus();
                 return;
             }
             
@@ -3381,10 +3443,27 @@
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
-                    alert('Error: ' + data.error);
+                    if (data.error.includes('already exists')) {
+                        warningDiv.textContent = 'This task type already exists!';
+                        warningDiv.style.display = 'block';
+                        input.style.borderColor = '#dc3545';
+                        input.focus();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
                 } else {
                     input.value = '';
+                    warningDiv.style.display = 'none';
+                    input.style.borderColor = '#000000';
+                    hideTaskTypeSuggestions();
                     loadTaskTypes();
+                    // Clear suggestions after successful add
+                    setTimeout(() => {
+                        const suggestionsDiv = document.getElementById('task-type-suggestions');
+                        if (suggestionsDiv) {
+                            suggestionsDiv.classList.add('hidden');
+                        }
+                    }, 100);
                 }
             })
             .catch(error => {
@@ -3617,13 +3696,92 @@
             `).join('');
         }
 
+        function showCountrySuggestions() {
+            const input = document.getElementById('new-country-input');
+            const suggestionsDiv = document.getElementById('country-suggestions');
+            const warningDiv = document.getElementById('country-duplicate-warning');
+            
+            if (!input || !suggestionsDiv) return;
+            
+            const query = input.value.trim().toLowerCase();
+            
+            if (!query) {
+                suggestionsDiv.classList.add('hidden');
+                warningDiv.style.display = 'none';
+                return;
+            }
+            
+            // Check for duplicates
+            const existingCountries = countriesCache || [];
+            const isDuplicate = existingCountries.some(country => 
+                country.name.toLowerCase() === query
+            );
+            
+            if (isDuplicate) {
+                suggestionsDiv.classList.add('hidden');
+                warningDiv.textContent = 'This country already exists!';
+                warningDiv.style.display = 'block';
+                input.style.borderColor = '#dc3545';
+                return;
+            } else {
+                warningDiv.style.display = 'none';
+                input.style.borderColor = '#000000';
+            }
+            
+            // Show similar suggestions
+            const similar = existingCountries
+                .filter(country => country.name.toLowerCase().includes(query))
+                .slice(0, 5);
+            
+            if (similar.length === 0) {
+                suggestionsDiv.classList.add('hidden');
+                return;
+            }
+            
+            suggestionsDiv.innerHTML = similar.map(country => 
+                `<div class="country-dropdown-item" onclick="selectCountrySuggestion('${country.name.replace(/'/g, "\\'")}')">${escapeHtml(country.name)}</div>`
+            ).join('');
+            suggestionsDiv.classList.remove('hidden');
+        }
+
+        function hideCountrySuggestions() {
+            const suggestionsDiv = document.getElementById('country-suggestions');
+            if (suggestionsDiv) {
+                suggestionsDiv.classList.add('hidden');
+            }
+        }
+
+        function selectCountrySuggestion(name) {
+            const input = document.getElementById('new-country-input');
+            if (input) {
+                input.value = name;
+            }
+            hideCountrySuggestions();
+            showCountrySuggestions(); // Re-check for duplicates
+        }
+
         function addCountry() {
             const input = document.getElementById('new-country-input');
+            const warningDiv = document.getElementById('country-duplicate-warning');
             if (!input) return;
             
             const name = input.value.trim();
             if (!name) {
                 alert('Country name cannot be empty');
+                return;
+            }
+            
+            // Check for duplicates before submitting
+            const existingCountries = countriesCache || [];
+            const isDuplicate = existingCountries.some(country => 
+                country.name.toLowerCase() === name.toLowerCase()
+            );
+            
+            if (isDuplicate) {
+                warningDiv.textContent = 'This country already exists!';
+                warningDiv.style.display = 'block';
+                input.style.borderColor = '#dc3545';
+                input.focus();
                 return;
             }
             
@@ -3635,10 +3793,27 @@
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
-                    alert('Error: ' + data.error);
+                    if (data.error.includes('already exists')) {
+                        warningDiv.textContent = 'This country already exists!';
+                        warningDiv.style.display = 'block';
+                        input.style.borderColor = '#dc3545';
+                        input.focus();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
                 } else {
                     input.value = '';
+                    warningDiv.style.display = 'none';
+                    input.style.borderColor = '#000000';
+                    hideCountrySuggestions();
                     loadCountries();
+                    // Clear suggestions after successful add
+                    setTimeout(() => {
+                        const suggestionsDiv = document.getElementById('country-suggestions');
+                        if (suggestionsDiv) {
+                            suggestionsDiv.classList.add('hidden');
+                        }
+                    }, 100);
                 }
             })
             .catch(error => {
@@ -3766,12 +3941,13 @@
             // Sort by display_order
             const sortedCountries = [...countries].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
             
-            // Update global COUNTRIES array for the country input field
-            window.COUNTRIES = sortedCountries.map(c => c.name);
+            // Update COUNTRIES array for the country input field
+            COUNTRIES = sortedCountries.map(c => c.name);
             
             // If country dropdown is visible, refresh it
             const countryInput = document.getElementById('customer-country');
-            if (countryInput && document.getElementById('country-dropdown') && !document.getElementById('country-dropdown').classList.contains('hidden')) {
+            const countryDropdown = document.getElementById('country-dropdown');
+            if (countryInput && countryDropdown && !countryDropdown.classList.contains('hidden')) {
                 filterCountries();
             }
         }
@@ -5558,8 +5734,8 @@
                 
                 return `
                 <tr>
-                    <td>${escapeHtml(customer.name || '')}</td>
                     <td>${escapeHtml(customer.company_name || '')}</td>
+                    <td>${escapeHtml(customer.name || '')}</td>
                     <td>${escapeHtml(customer.email_suffix || '')}</td>
                     <td>${escapeHtml(country)}</td>
                     <td>${websiteLink ? `<a href="${escapeHtml(websiteLink)}" target="_blank" rel="noopener noreferrer">${escapeHtml(website)}</a>` : ''}</td>
