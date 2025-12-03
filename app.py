@@ -1847,7 +1847,8 @@ def handle_tasks():
                     t.created_at,
                     t.updated_at,
                     c.company_name,
-                    c.source AS customer_source
+                    c.source AS customer_source,
+                    c.business_type AS customer_business_type
                 FROM tasks t
                 LEFT JOIN customers c ON (c.name = t.customer OR c.email_suffix = t.email)
                 ORDER BY datetime(t.created_at) DESC
@@ -1876,7 +1877,8 @@ def handle_tasks():
                     'created_at': row['created_at'],
                     'updated_at': row['updated_at'],
                     'company_name': row['company_name'],
-                    'source': row['customer_source']
+                    'source': row['customer_source'],
+                    'business_type': row['customer_business_type']
                 })
             
             return jsonify({'tasks': tasks})

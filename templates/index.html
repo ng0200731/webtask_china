@@ -5316,12 +5316,14 @@
             const attachmentsText = attachments.map(att => att.filename || 'attachment').join(', ');
             const companyName = task.company_name || '';
             const source = task.source || '';
+            const businessType = task.business_type || '';
             const createdAtDisplay = task.created_at ? escapeHtml(new Date(task.created_at).toLocaleString()) : '';
             const lastUpdatedDisplay = task.updated_at ? escapeHtml(new Date(task.updated_at).toLocaleString()) : '';
             const rowAttributes = [
                 `id="task-row-${task.id}"`,
                 `data-task-id="${task.id}"`,
                 `data-sequence="${escapeHtml(task.sequence || '')}"`,
+                `data-business_type="${escapeHtml(businessType)}"`,
                 `data-customer="${escapeHtml(task.customer || '')}"`,
                 `data-company_name="${escapeHtml(companyName)}"`,
                 `data-email="${escapeHtml(task.email || '')}"`,
@@ -5338,6 +5340,7 @@
                 return `
                     <tr ${rowAttributes}>
                         <td>${escapeHtml(task.sequence || '')}</td>
+                        <td>${escapeHtml(businessType)}</td>
                         <td>${escapeHtml(task.customer || '')}</td>
                         <td>${escapeHtml(companyName)}</td>
                         <td>${escapeHtml(task.email || '')}</td>
@@ -5364,6 +5367,7 @@
             return `
                 <tr class="task-editing-row" ${rowAttributes}>
                     <td>${escapeHtml(task.sequence || '')}</td>
+                    <td>${escapeHtml(businessType)}</td>
                     <td><input type="text" class="inline-task-input" data-field="customer" value="${escapeHtml(task.customer || '')}"></td>
                     <td><input type="text" class="inline-task-input" data-field="company_name" value="${escapeHtml(companyName)}" readonly></td>
                     <td><input type="text" class="inline-task-input" data-field="email" value="${escapeHtml(task.email || '')}"></td>
@@ -5425,6 +5429,7 @@
                                     <thead>
                                         <tr>
                                             <th>Sequence</th>
+                                            <th>Business Type</th>
                                             <th>Customer</th>
                                             <th>Company Name</th>
                                             <th>Email</th>
@@ -5439,6 +5444,7 @@
                                         </tr>
                                         <tr>
                                             <th><input type="text" class="task-filter-input" data-field="sequence" placeholder="Filter sequence"></th>
+                                            <th><input type="text" class="task-filter-input" data-field="business_type" placeholder="Filter business type"></th>
                                             <th><input type="text" class="task-filter-input" data-field="customer" placeholder="Filter customer"></th>
                                             <th><input type="text" class="task-filter-input" data-field="company_name" placeholder="Filter company name"></th>
                                             <th><input type="text" class="task-filter-input" data-field="email" placeholder="Filter email"></th>
