@@ -247,6 +247,10 @@ def initialize_database():
             cursor.execute("ALTER TABLE tasks ADD COLUMN deadline TEXT")
         except sqlite3.OperationalError:
             pass  # Column already exists
+        try:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN email TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
         cursor.execute("PRAGMA table_info(tasks)")
         task_columns = {row['name'] for row in cursor.fetchall()}
         if 'updated_at' not in task_columns:
@@ -1834,25 +1838,81 @@ def handle_tasks():
         try:
             connection = get_db_connection()
             cursor = connection.cursor()
-            cursor.execute("""
-                SELECT 
-                    t.id,
-                    t.sequence,
-                    t.customer,
-                    t.email,
-                    t.catalogue,
-                    t.template,
-                    t.attachments,
-                    t.deadline,
-                    t.created_at,
-                    t.updated_at,
-                    c.company_name,
-                    c.source AS customer_source,
-                    c.business_type AS customer_business_type
-                FROM tasks t
-                LEFT JOIN customers c ON (c.name = t.customer OR c.email_suffix = t.email)
-                ORDER BY datetime(t.created_at) DESC
-            """)
+            
+            # Always try to add email column if it doesn't exist (idempotent)
+            try:
+                cursor.execute("ALTER TABLE tasks ADD COLUMN email TEXT")
+                connection.commit()
+                # Force schema refresh by querying table info
+                cursor.execute("PRAGMA table_info(tasks)")
+            except sqlite3.OperationalError:
+                connection.rollback()  # Column already exists, rollback any partial changes
+                pass
+            
+            # Try the query with email column first
+            try:
+                cursor.execute("""
+                    SELECT 
+                        t.id,
+                        t.sequence,
+                        t.customer,
+                        t.email,
+                        t.catalogue,
+                        t.template,
+                        t.attachments,
+                        t.deadline,
+                        t.created_at,
+                        t.updated_at,
+                        (SELECT company_name FROM customers c 
+                         WHERE (t.email IS NOT NULL AND c.email_suffix = t.email) 
+                            OR (t.customer IS NOT NULL AND c.name = t.customer)
+                         ORDER BY CASE WHEN t.email IS NOT NULL AND c.email_suffix = t.email THEN 1 ELSE 2 END, c.id
+                         LIMIT 1) AS company_name,
+                        (SELECT source FROM customers c 
+                         WHERE (t.email IS NOT NULL AND c.email_suffix = t.email) 
+                            OR (t.customer IS NOT NULL AND c.name = t.customer)
+                         ORDER BY CASE WHEN t.email IS NOT NULL AND c.email_suffix = t.email THEN 1 ELSE 2 END, c.id
+                         LIMIT 1) AS customer_source,
+                        (SELECT business_type FROM customers c 
+                         WHERE (t.email IS NOT NULL AND c.email_suffix = t.email) 
+                            OR (t.customer IS NOT NULL AND c.name = t.customer)
+                         ORDER BY CASE WHEN t.email IS NOT NULL AND c.email_suffix = t.email THEN 1 ELSE 2 END, c.id
+                         LIMIT 1) AS customer_business_type
+                    FROM tasks t
+                    ORDER BY datetime(t.created_at) DESC
+                """)
+            except sqlite3.OperationalError as e:
+                # If email column still doesn't exist, use fallback query
+                if 'no such column' in str(e).lower() and 'email' in str(e).lower():
+                    cursor.execute("""
+                        SELECT 
+                            t.id,
+                            t.sequence,
+                            t.customer,
+                            NULL as email,
+                            t.catalogue,
+                            t.template,
+                            t.attachments,
+                            t.deadline,
+                            t.created_at,
+                            t.updated_at,
+                            (SELECT company_name FROM customers c 
+                             WHERE c.name = t.customer
+                             ORDER BY c.id
+                             LIMIT 1) AS company_name,
+                            (SELECT source FROM customers c 
+                             WHERE c.name = t.customer
+                             ORDER BY c.id
+                             LIMIT 1) AS customer_source,
+                            (SELECT business_type FROM customers c 
+                             WHERE c.name = t.customer
+                             ORDER BY c.id
+                             LIMIT 1) AS customer_business_type
+                        FROM tasks t
+                        ORDER BY datetime(t.created_at) DESC
+                    """)
+                else:
+                    raise  # Re-raise if it's a different error
             rows = cursor.fetchall()
             cursor.close()
             connection.close()
