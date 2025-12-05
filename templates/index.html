@@ -1991,8 +1991,11 @@
                     </div>
                     <div class="form-group">
                         <label for="task-catalogue">Type</label>
-                        <select id="task-catalogue">
-                        </select>
+                        <div class="dropdown-input-wrapper" style="position: relative;">
+                            <input type="text" id="task-catalogue" placeholder="Search or select type" autocomplete="off" oninput="filterTaskTypes()" onfocus="showTaskTypeDropdown()" onblur="setTimeout(() => hideTaskTypeDropdown(), 200)">
+                            <span class="dropdown-arrow">▼</span>
+                            <div id="task-type-dropdown" class="country-dropdown hidden"></div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="task-deadline">Deadline</label>
@@ -2078,7 +2081,7 @@
         const taskEmailInput = document.getElementById('task-email');
         const taskSequenceInput = document.getElementById('task-sequence');
         const taskAttachmentsDiv = document.getElementById('task-attachments');
-        const taskCatalogueSelect = document.getElementById('task-catalogue');
+        const taskCatalogueInput = document.getElementById('task-catalogue');
         const taskDeadlineInput = document.getElementById('task-deadline');
         const taskNotesEditorDiv = document.getElementById('task-notes-editor');
         const editTaskModal = document.getElementById('edit-task-modal');
@@ -2307,6 +2310,7 @@
 
         // Country list - will be populated from database
         let COUNTRIES = [];
+        let TASK_TYPES = [];
         // Customer sources list - will be populated from database
         let CUSTOMER_SOURCES = [];
         // Customer business types list - will be populated from database
@@ -3961,17 +3965,85 @@
                 }
             }
             
-            // Update task modal dropdown
-            const taskCatalogueSelect = document.getElementById('task-catalogue');
-            if (taskCatalogueSelect) {
-                const currentValue = taskCatalogueSelect.value;
-                taskCatalogueSelect.innerHTML = sortedTypes.map(type => 
-                    `<option value="${escapeHtml(type.name)}">${escapeHtml(type.name)}</option>`
+            // Store task types for filtering
+            TASK_TYPES = sortedTypes.map(type => type.name);
+            window.TASK_TYPES = TASK_TYPES;
+            
+            // Update task modal dropdown (populate the dropdown list, not select options)
+            const taskTypeDropdown = document.getElementById('task-type-dropdown');
+            if (taskTypeDropdown) {
+                taskTypeDropdown.innerHTML = sortedTypes.map(type => 
+                    `<div class="country-dropdown-item" onclick="selectTaskType('${escapeHtml(type.name)}')">${escapeHtml(type.name)}</div>`
                 ).join('');
-                if (currentValue) {
-                    taskCatalogueSelect.value = currentValue;
-                }
             }
+        }
+
+        function filterTaskTypes() {
+            const input = document.getElementById('task-catalogue');
+            const dropdown = document.getElementById('task-type-dropdown');
+            if (!input || !dropdown) return;
+            
+            const filter = input.value.toLowerCase().trim();
+            const types = TASK_TYPES || window.TASK_TYPES || [];
+            
+            if (types.length === 0) {
+                // Load task types if not loaded
+                loadTaskTypesForDropdown();
+                setTimeout(() => filterTaskTypes(), 100);
+                return;
+            }
+            
+            const filtered = types.filter(type => 
+                type.toLowerCase().includes(filter)
+            );
+            
+            dropdown.innerHTML = filtered.map(type => 
+                `<div class="country-dropdown-item" onclick="selectTaskType('${escapeHtml(type)}')">${escapeHtml(type)}</div>`
+            ).join('');
+            
+            dropdown.classList.remove('hidden');
+        }
+
+        function showTaskTypeDropdown() {
+            const input = document.getElementById('task-catalogue');
+            const dropdown = document.getElementById('task-type-dropdown');
+            if (!input || !dropdown) return;
+            
+            const types = TASK_TYPES || window.TASK_TYPES || [];
+            
+            if (types.length === 0) {
+                // Load task types if not loaded
+                loadTaskTypesForDropdown();
+                setTimeout(() => showTaskTypeDropdown(), 100);
+                return;
+            }
+            
+            if (input.value.trim() === '') {
+                // Show full list when field is empty
+                dropdown.innerHTML = types.map(type => 
+                    `<div class="country-dropdown-item" onclick="selectTaskType('${escapeHtml(type)}')">${escapeHtml(type)}</div>`
+                ).join('');
+            } else {
+                // Filter based on current input
+                filterTaskTypes();
+            }
+            
+            dropdown.classList.remove('hidden');
+        }
+
+        function hideTaskTypeDropdown() {
+            const dropdown = document.getElementById('task-type-dropdown');
+            if (dropdown) {
+                dropdown.classList.add('hidden');
+            }
+        }
+
+        function selectTaskType(typeName) {
+            const input = document.getElementById('task-catalogue');
+            if (input) {
+                input.value = typeName;
+            }
+            hideTaskTypeDropdown();
         }
 
         // Countries Management Functions
@@ -5097,8 +5169,8 @@
             }
             // Set default value after types are loaded
             setTimeout(() => {
-                if (taskTypesCache && taskTypesCache.length > 0) {
-                    taskCatalogueSelect.value = taskTypesCache[0].name || '';
+                if (taskTypesCache && taskTypesCache.length > 0 && taskCatalogueInput) {
+                    taskCatalogueInput.value = taskTypesCache[0].name || '';
                 }
             }, 100);
             
@@ -5249,7 +5321,7 @@
         }
 
         function submitTask() {
-            const catalogue = taskCatalogueSelect.value;
+            const catalogue = taskCatalogueInput ? taskCatalogueInput.value.trim() : '';
             // Get content from Quill editor
             let template = '';
             if (taskNotesEditor) {
