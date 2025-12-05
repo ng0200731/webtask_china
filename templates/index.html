@@ -5188,6 +5188,79 @@
             }
         }
 
+        function findHistoryCustomer(tasks) {
+            if (!tasks || tasks.length === 0) return null;
+            const first = tasks[0] || {};
+            const targetName = (first.customer || '').toLowerCase();
+            const targetEmail = (first.email || '').toLowerCase();
+            const targetCompany = (first.company_name || '').toLowerCase();
+            const customers = customerCache || [];
+            if (!customers || customers.length === 0) return {
+                company_name: first.company_name || '',
+                customer: first.customer || '',
+                email: first.email || '',
+                source: first.customer_source || '',
+                business_type: first.customer_business_type || ''
+            };
+
+            const match = customers.find(c =>
+                ((c.email_suffix || '').toLowerCase() === targetEmail && targetEmail) ||
+                ((c.name || '').toLowerCase() === targetName && targetName) ||
+                ((c.company_name || '').toLowerCase() === targetCompany && targetCompany)
+            );
+
+            if (match) {
+                return {
+                    company_name: match.company_name || first.company_name || '',
+                    customer: match.name || first.customer || '',
+                    email: match.email_suffix || first.email || '',
+                    country: match.country || '',
+                    address: match.address || '',
+                    website: match.website || '',
+                    tel: match.tel || '',
+                    source: match.source || first.customer_source || '',
+                    business_type: match.business_type || first.customer_business_type || ''
+                };
+            }
+
+            return {
+                company_name: first.company_name || '',
+                customer: first.customer || '',
+                email: first.email || '',
+                source: first.customer_source || '',
+                business_type: first.customer_business_type || ''
+            };
+        }
+
+        function renderHistoryCustomerDetails(tasks) {
+            const customer = findHistoryCustomer(tasks);
+            if (!customer) return '';
+            const websiteLink = customer.website
+                ? (customer.website.startsWith('http') ? customer.website : `https://${customer.website}`)
+                : '';
+            const websiteHtml = customer.website
+                ? `<a href="${escapeHtml(websiteLink)}" target="_blank" rel="noopener noreferrer">${escapeHtml(customer.website)}</a>`
+                : '';
+            const contactLineParts = [];
+            if (customer.customer) contactLineParts.push(escapeHtml(customer.customer));
+            if (customer.tel) contactLineParts.push(`Tel: ${escapeHtml(customer.tel)}`);
+            if (customer.email) contactLineParts.push(`Email: ${escapeHtml(customer.email)}`);
+            const contactLine = contactLineParts.join(' • ');
+
+            return `
+                <div style="margin-top: 12px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; background: #fafafa;">
+                    <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">Customer Details</div>
+                    <div><strong>Country:</strong> ${escapeHtml(customer.country || '')}</div>
+                    <div><strong>Company Name:</strong> ${escapeHtml(customer.company_name || '')}</div>
+                    <div><strong>Company Address:</strong> ${escapeHtml(customer.address || '')}</div>
+                    <div><strong>Customer Contacts:</strong> ${contactLine || ''}</div>
+                    <div><strong>Web Site:</strong> ${websiteHtml}</div>
+                    <div><strong>Source:</strong> ${escapeHtml(customer.source || '')}</div>
+                    <div><strong>Business Type:</strong> ${escapeHtml(customer.business_type || '')}</div>
+                </div>
+            `;
+        }
+
         function buildHistoryShareBody(tasks) {
             const titleText = historyModalTitle ? (historyModalTitle.textContent || 'Task History') : 'Task History';
             const metaText = historyModalMeta ? (historyModalMeta.textContent || '') : '';
@@ -5201,6 +5274,8 @@
             if (!tasks || tasks.length === 0) {
                 return `${headerHtml}<p>No tasks available.</p>`;
             }
+
+            const customerDetailsHtml = renderHistoryCustomerDetails(tasks);
 
             const tasksHtml = tasks.map((task, index) => {
                 const sequence = escapeHtml(task.sequence || `#${index + 1}`);
@@ -5245,7 +5320,7 @@
                 `;
             }).join('');
 
-            return headerHtml + tasksHtml;
+            return headerHtml + customerDetailsHtml + tasksHtml;
         }
 
         function sendHistoryShare() {
