@@ -5181,22 +5181,63 @@
                     historyEmailList.innerHTML = tasks.map((task, index) => {
                         const createdAtDisplay = task.created_at ? new Date(task.created_at).toLocaleString() : 'Unknown date';
                         const updatedAtDisplay = task.updated_at ? new Date(task.updated_at).toLocaleString() : 'Unknown date';
-                        const attachmentsHtml = task.attachments && task.attachments.length > 0
-                            ? `<div class="email-attachments">${task.attachments.map(att => 
-                                `<span class="attachment-chip">📎 ${escapeHtml(att.filename || 'attachment')}</span>`
-                            ).join('')}</div>`
-                            : '';
+                        
+                        // Render attachments with image previews
+                        let attachmentsHtml = '';
+                        if (task.attachments && task.attachments.length > 0) {
+                            attachmentsHtml = '<div class="email-attachments" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">';
+                            attachmentsHtml += '<div style="font-weight: bold; margin-bottom: 10px; font-size: 14px;">Attachments:</div>';
+                            attachmentsHtml += task.attachments.map((att, attIdx) => {
+                                const filename = escapeHtml(att.filename || 'attachment');
+                                const contentType = att.content_type || 'application/octet-stream';
+                                const isImage = isImageContent(att.filename, contentType);
+                                const isPDF = isPDFContent(att.filename, contentType);
+                                const isText = isTextContent(att.filename, contentType);
+                                const isViewable = Boolean(isImage || isPDF || isText);
+                                
+                                let previewHtml = '';
+                                if (isImage) {
+                                    previewHtml = `<img src="data:${contentType};base64,${att.data}" alt="${filename}" style="max-width: 200px; max-height: 150px; border: 1px solid #ccc; margin: 5px 0; cursor: pointer;" onclick="openHistoryTaskAttachment(${index}, ${attIdx})">`;
+                                } else if (isPDF || isText) {
+                                    previewHtml = `<div style="padding: 10px; border: 1px solid #ccc; background: #f5f5f5; margin: 5px 0; cursor: pointer; text-align: center;" onclick="openHistoryTaskAttachment(${index}, ${attIdx})">📄 ${filename}</div>`;
+                                }
+                                
+                                const downloadLink = `<a href="data:${contentType};base64,${att.data}" download="${filename}" style="text-decoration: none; color: #0066cc; margin-left: 10px;">📎 Download</a>`;
+                                
+                                return `
+                                    <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; background: #fafafa;">
+                                        <div style="font-weight: bold; margin-bottom: 5px;">${filename}</div>
+                                        ${previewHtml}
+                                        <div style="margin-top: 5px;">
+                                            ${isViewable ? `<button onclick="openHistoryTaskAttachment(${index}, ${attIdx})" style="padding: 5px 10px; font-size: 12px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 3px;">View</button>` : ''}
+                                            ${downloadLink}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('');
+                            attachmentsHtml += '</div>';
+                        }
+                        
+                        // Render template as HTML (rich text)
+                        const templateHtml = task.template || '';
                         
                         return `
-                            <div class="email-item">
-                                <div class="email-content">
-                                    <div class="email-header">
-                                        <div class="email-subject">${escapeHtml(task.sequence || 'No Sequence')} - ${escapeHtml(task.catalogue || 'No Type')}</div>
-                                        <div class="email-date">Updated: ${escapeHtml(updatedAtDisplay)}</div>
+                            <div class="email-item" style="margin-bottom: 20px; border: 2px solid #000;">
+                                <div class="email-content" style="padding: 15px;">
+                                    <div class="email-header" style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
+                                        <div class="email-subject" style="font-size: 16px; font-weight: bold;">${escapeHtml(task.sequence || 'No Sequence')} - ${escapeHtml(task.catalogue || 'No Type')}</div>
+                                        <div class="email-date" style="font-size: 12px; color: #666; margin-top: 5px;">Updated: ${escapeHtml(updatedAtDisplay)}</div>
                                     </div>
-                                    <div class="email-from">Created: ${escapeHtml(createdAtDisplay)}</div>
-                                    <div class="email-from">Deadline: ${escapeHtml(task.deadline || 'N/A')}</div>
-                                    <div class="email-preview" style="margin-top: 10px; white-space: pre-wrap;">${escapeHtml(task.template || '')}</div>
+                                    <div style="margin-bottom: 10px; font-size: 13px;">
+                                        <strong>Created:</strong> ${escapeHtml(createdAtDisplay)}<br>
+                                        <strong>Deadline:</strong> ${escapeHtml(task.deadline || 'N/A')}
+                                    </div>
+                                    <div style="margin-top: 15px; padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;">
+                                        <div style="font-weight: bold; margin-bottom: 10px; font-size: 14px;">Template Content:</div>
+                                        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #000;">
+                                            ${templateHtml}
+                                        </div>
+                                    </div>
                                     ${attachmentsHtml}
                                 </div>
                             </div>
@@ -6245,6 +6286,21 @@
             const contentType = att.content_type || 'application/octet-stream';
             const filename = att.filename || `Attachment ${attachmentIndex + 1}`;
 
+            openPreviewModal(att.data || '', contentType, filename);
+        }
+
+        function openHistoryTaskAttachment(taskIndex, attachmentIndex) {
+            if (!window.historyTasks || !window.historyTasks[taskIndex]) {
+                return;
+            }
+            const task = window.historyTasks[taskIndex];
+            const attachments = task.attachments || [];
+            const att = attachments[attachmentIndex];
+            if (!att) {
+                return;
+            }
+            const contentType = att.content_type || 'application/octet-stream';
+            const filename = att.filename || `Attachment ${attachmentIndex + 1}`;
             openPreviewModal(att.data || '', contentType, filename);
         }
 
