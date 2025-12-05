@@ -20,7 +20,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 app = Flask(__name__)
-app.config['VERSION'] = '1.0.72'
+app.config['VERSION'] = '1.0.73'
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Default email configurations (can be overridden via settings)
@@ -1904,7 +1904,12 @@ def handle_tasks():
                         t.id,
                         t.sequence,
                         t.customer,
-                        t.email,
+                        COALESCE(t.email, 
+                            (SELECT c.email_suffix FROM customers c 
+                             WHERE t.customer IS NOT NULL AND c.name = t.customer
+                             ORDER BY c.id
+                             LIMIT 1)
+                        ) AS email,
                         t.catalogue,
                         t.template,
                         t.attachments,
@@ -1937,7 +1942,10 @@ def handle_tasks():
                             t.id,
                             t.sequence,
                             t.customer,
-                            NULL as email,
+                            (SELECT c.email_suffix FROM customers c 
+                             WHERE t.customer IS NOT NULL AND c.name = t.customer
+                             ORDER BY c.id
+                             LIMIT 1) AS email,
                             t.catalogue,
                             t.template,
                             t.attachments,
