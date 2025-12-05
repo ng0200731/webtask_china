@@ -2084,13 +2084,27 @@
                     <div class="modal-title" id="history-modal-title">Customer Conversation History</div>
                     <div class="modal-meta" id="history-modal-meta"></div>
                 </div>
-                <button class="modal-close" onclick="closeHistoryModal()">Close</button>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button class="form-button" id="history-share-toggle" onclick="toggleHistoryShare(event)" style="padding: 6px 12px; font-size: 13px;">Share</button>
+                    <div id="history-share-form" class="hidden" style="display: flex; align-items: center; gap: 6px;">
+                        <input type="email" id="history-share-email" placeholder="Enter email to share history" style="padding: 6px; border: 1px solid #000000; min-width: 220px;">
+                        <button class="form-button" onclick="sendHistoryShare()" style="padding: 6px 12px; font-size: 13px;">Send</button>
+                    </div>
+                    <button class="modal-close" onclick="closeHistoryModal()">Close</button>
+                </div>
             </div>
             <div class="modal-body" style="max-height: calc(90vh - 120px); overflow-y: auto;">
                 <div id="history-email-list" class="email-list"></div>
                 <div id="history-loading" class="message info" style="text-align: center; padding: 20px;">Loading conversation history...</div>
                 <div id="history-empty" class="message info hidden" style="text-align: center; padding: 20px;">No emails found for this customer.</div>
             </div>
+        </div>
+    </div>
+
+    <div id="history-share-sending" class="modal hidden" style="background: rgba(0,0,0,0.35);" role="alertdialog" aria-live="polite">
+        <div class="modal-dialog" style="max-width: 320px; text-align: center; padding: 20px;">
+            <div style="font-size: 16px; margin-bottom: 10px;">Sending...</div>
+            <div style="font-size: 13px; color: #444;">Please wait while we send the history.</div>
         </div>
     </div>
 
@@ -2113,6 +2127,9 @@
         const historyEmailList = document.getElementById('history-email-list');
         const historyLoading = document.getElementById('history-loading');
         const historyEmpty = document.getElementById('history-empty');
+        const historyShareForm = document.getElementById('history-share-form');
+        const historyShareEmailInput = document.getElementById('history-share-email');
+        const historyShareSending = document.getElementById('history-share-sending');
         const taskCustomerSelect = document.getElementById('task-customer-select');
         const taskEmailInput = document.getElementById('task-email');
         const taskSequenceInput = document.getElementById('task-sequence');
@@ -5153,11 +5170,159 @@
             attachmentList.innerHTML = '';
         }
 
+        function toggleHistoryShare(event) {
+            if (event) event.stopPropagation();
+            if (!historyShareForm) return;
+            historyShareForm.classList.toggle('hidden');
+            if (!historyShareForm.classList.contains('hidden') && historyShareEmailInput) {
+                setTimeout(() => historyShareEmailInput.focus(), 50);
+            }
+        }
+
+        function closeHistoryShareForm() {
+            if (historyShareForm) {
+                historyShareForm.classList.add('hidden');
+            }
+            if (historyShareEmailInput) {
+                historyShareEmailInput.value = '';
+            }
+        }
+
+        function buildHistoryShareBody(tasks) {
+            const titleText = historyModalTitle ? (historyModalTitle.textContent || 'Task History') : 'Task History';
+            const metaText = historyModalMeta ? (historyModalMeta.textContent || '') : '';
+            const headerHtml = `
+                <div>
+                    <h3 style="margin: 0 0 8px 0;">${escapeHtml(titleText)}</h3>
+                    ${metaText ? `<div style="color: #555;">${escapeHtml(metaText)}</div>` : ''}
+                </div>
+            `;
+
+            if (!tasks || tasks.length === 0) {
+                return `${headerHtml}<p>No tasks available.</p>`;
+            }
+
+            const tasksHtml = tasks.map((task, index) => {
+                const sequence = escapeHtml(task.sequence || `#${index + 1}`);
+                const catalogue = escapeHtml(task.catalogue || 'N/A');
+                const updatedAt = escapeHtml(task.updated_at || task.created_at || '');
+                const templateHtml = task.template || '<em>No template content</em>';
+                const attachments = Array.isArray(task.attachments) ? task.attachments : [];
+                const attachmentsHtml = attachments.length === 0 ? '' : `
+                    <div style="margin-top: 10px;">
+                        <div><strong>Attachments (${attachments.length}):</strong></div>
+                        ${attachments.map(att => {
+                            const name = escapeHtml(att.filename || 'attachment');
+                            const ctype = (att.content_type || '').toLowerCase();
+                            const size = att.size ? ` • ${formatAttachmentSize(att.size)}` : '';
+                            const isImg = ctype.startsWith('image/');
+                            if (isImg && att.data) {
+                                const dataUrl = `data:${att.content_type || 'image/png'};base64,${att.data}`;
+                                return `
+                                    <div style="margin: 6px 0;">
+                                        <div style="font-size: 12px; color: #555; margin-bottom: 4px;">${name}${size}</div>
+                                        <a href="${dataUrl}" download="${name}" style="text-decoration: none; display: inline-block;">
+                                            <img src="${dataUrl}" alt="${name}" style="width: 100%; max-width: 100%; height: auto; border: 1px solid #ccc; display: block;">
+                                        </a>
+                                        <div style="margin-top: 4px; font-size: 12px;">
+                                            <a href="${dataUrl}" download="${name}">Download original</a>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                            return `<div style="margin: 4px 0; font-size: 13px;">${name}${size}</div>`;
+                        }).join('')}
+                    </div>
+                `;
+                return `
+                    <div style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
+                        <div><strong>Sequence:</strong> ${sequence}</div>
+                        <div><strong>Type:</strong> ${catalogue}</div>
+                        <div><strong>Updated:</strong> ${updatedAt}</div>
+                        <div style="margin-top: 8px;">${templateHtml}</div>
+                        ${attachmentsHtml}
+                    </div>
+                `;
+            }).join('');
+
+            return headerHtml + tasksHtml;
+        }
+
+        function sendHistoryShare() {
+            if (!historyShareEmailInput) {
+                alert('Share email input not found');
+                return;
+            }
+
+            const emailRaw = historyShareEmailInput.value || '';
+            // Normalize: remove common wrappers and collapse spaces
+            const normalized = emailRaw.trim().replace(/[<>"'\\u3000]/g, '').replace(/\\s+/g, '');
+            // Support comma/semicolon separated; take the first plausible email
+            const candidates = normalized.split(/[;,]+/).filter(Boolean);
+            let email = '';
+            for (const cand of candidates) {
+                if (cand.includes('@') && cand.includes('.')) {
+                    email = cand;
+                    break;
+                }
+            }
+            if (!email) {
+                alert('Please enter a valid email address');
+                return;
+            }
+
+            const tasks = window.historyTasks || [];
+            const bodyHtml = buildHistoryShareBody(tasks);
+            const subject = (historyModalTitle ? historyModalTitle.textContent : 'Task History') || 'Task History';
+
+            const showSending = () => {
+                if (historyShareSending) {
+                    historyShareSending.classList.remove('hidden');
+                }
+            };
+            const hideSending = () => {
+                if (historyShareSending) {
+                    historyShareSending.classList.add('hidden');
+                }
+            };
+
+            showSending();
+
+            fetch('/api/send-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    to: email,
+                    subject: subject,
+                    body: bodyHtml,
+                    is_html: true
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideSending();
+                if (data.error) {
+                    alert('Error sending history: ' + data.error);
+                } else {
+                    alert('History sent successfully!');
+                    closeHistoryShareForm();
+                }
+            })
+            .catch(err => {
+                hideSending();
+                alert('Error sending history: ' + err.message);
+            });
+        }
+
         function openCustomerHistory(companyName, customerName) {
             if (!companyName || !companyName.trim() || !customerName || !customerName.trim()) {
                 alert('Company name and customer name are required to view history.');
                 return;
             }
+
+            closeHistoryShareForm();
 
             // Show modal and loading state
             historyModal.classList.remove('hidden');
@@ -5266,6 +5431,7 @@
             historyEmailList.innerHTML = '';
             historyLoading.classList.remove('hidden');
             historyEmpty.classList.add('hidden');
+            closeHistoryShareForm();
             window.historyEmails = null;
             window.historyTasks = null;
         }

@@ -20,7 +20,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 app = Flask(__name__)
-app.config['VERSION'] = '1.0.75'
+app.config['VERSION'] = '1.0.80'
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Default email configurations (can be overridden via settings)
