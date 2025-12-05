@@ -2003,7 +2003,13 @@
                     </div>
                 </div>
                 <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
-                    <label for="task-notes">Template</label>
+                    <label for="task-notes">Context</label>
+                    <div id="task-email-details" style="margin-bottom: 15px; padding: 12px; background-color: #f5f5f5; border: 1px solid #d0d0d0; font-family: Arial, sans-serif; font-size: 13px; color: #333; display: none;">
+                        <div style="margin-bottom: 8px;"><strong>寄件者:</strong> <span id="task-email-from"></span></div>
+                        <div style="margin-bottom: 8px;"><strong>寄件日期:</strong> <span id="task-email-date"></span></div>
+                        <div style="margin-bottom: 8px;"><strong>收件者:</strong> <span id="task-email-to"></span></div>
+                        <div><strong>主旨:</strong> <span id="task-email-subject"></span></div>
+                    </div>
                     <div id="task-notes-editor" style="height: 300px; background-color: #ffffff;"></div>
                 </div>
                 <div class="form-group">
@@ -3035,11 +3041,12 @@
                 // Intentionally do NOT close the preview modal on Escape so it can only be closed via the (X) button
             });
 
+            const customerSuffixInput = document.getElementById('customer-email-address');
             if (customerSuffixInput) {
                 customerSuffixInput.addEventListener('input', () => {
                     if (customerSuffixInput.value.includes('@')) {
-                        customerSuffixInput.value = customerSuffixInput.value.replace(/@/g, '');
-                        showCustomerStatus('Removed "@". Please enter only the domain, e.g. example.com.', true);
+                        // Allow @ in email addresses - this is for customer email, not suffix
+                        // No need to remove @ symbol
                     }
                 });
             }
@@ -5189,6 +5196,9 @@
                 }
             }
 
+            // Store email for later use (store the full email object)
+            window.currentTaskEmail = email;
+
             // Display attachments
             if (taskAttachmentsDiv) {
                 if (Array.isArray(email.attachments) && email.attachments.length > 0) {
@@ -5229,6 +5239,137 @@
             }
 
             taskModal.classList.remove('hidden');
+            
+            // Populate email details after modal is shown - use multiple retries with increasing delays
+            const showEmailDetails = () => {
+                const emailDetailsDiv = document.getElementById('task-email-details');
+                const email = window.currentTaskEmail;
+                
+                if (!emailDetailsDiv) {
+                    console.log('Email details div not found');
+                    return false; // Element not found yet
+                }
+                
+                console.log('Email details check:', { email: !!email, hasFrom: !!email?.from, hasTo: !!email?.to, hasSubject: !!email?.subject, hasDate: !!email?.date });
+                
+                if (email) {
+                    // Format date
+                    let formattedDate = 'Unknown';
+                    if (email.date) {
+                        try {
+                            const dateObj = new Date(email.date);
+                            if (!isNaN(dateObj.getTime())) {
+                                // Format: 2025年12月4日 9:49
+                                const year = dateObj.getFullYear();
+                                const month = dateObj.getMonth() + 1;
+                                const day = dateObj.getDate();
+                                const hours = dateObj.getHours();
+                                const minutes = dateObj.getMinutes();
+                                formattedDate = `${year}年${month}月${day}日 ${hours}:${minutes.toString().padStart(2, '0')}`;
+                            } else {
+                                formattedDate = email.date;
+                            }
+                        } catch (e) {
+                            formattedDate = email.date || 'Unknown';
+                        }
+                    }
+
+                    // Populate email details
+                    const fromSpan = document.getElementById('task-email-from');
+                    const dateSpan = document.getElementById('task-email-date');
+                    const toSpan = document.getElementById('task-email-to');
+                    const subjectSpan = document.getElementById('task-email-subject');
+
+                    if (fromSpan) fromSpan.textContent = email.from || 'Unknown';
+                    if (dateSpan) dateSpan.textContent = formattedDate;
+                    if (toSpan) toSpan.textContent = email.to || 'Unknown';
+                    if (subjectSpan) subjectSpan.textContent = email.subject || 'No Subject';
+
+                    // Force show the details section by directly modifying the style attribute
+                    // Remove the inline display:none and replace with display:block
+                    const currentStyle = emailDetailsDiv.getAttribute('style') || '';
+                    const newStyle = currentStyle.replace(/display\s*:\s*none/gi, 'display: block')
+                                                 .replace(/display\s*:\s*block/gi, 'display: block');
+                    
+                    // Set all required styles directly
+                    emailDetailsDiv.setAttribute('style', 
+                        'margin-bottom: 15px !important; ' +
+                        'padding: 12px !important; ' +
+                        'background-color: #f5f5f5 !important; ' +
+                        'border: 1px solid #d0d0d0 !important; ' +
+                        'font-family: Arial, sans-serif !important; ' +
+                        'font-size: 13px !important; ' +
+                        'color: #333 !important; ' +
+                        'display: block !important; ' +
+                        'visibility: visible !important; ' +
+                        'opacity: 1 !important'
+                    );
+                    
+                    // Also remove any classes that might hide it
+                    emailDetailsDiv.removeAttribute('hidden');
+                    emailDetailsDiv.classList.remove('hidden');
+                    
+                    // Ensure parent container is visible
+                    const parentFormGroup = emailDetailsDiv.parentElement;
+                    if (parentFormGroup) {
+                        parentFormGroup.style.setProperty('display', 'flex', 'important');
+                        parentFormGroup.style.setProperty('flex-direction', 'column', 'important');
+                        parentFormGroup.style.setProperty('overflow', 'visible', 'important');
+                    }
+                    
+                    // Scroll into view to ensure it's visible
+                    emailDetailsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    
+                    // Verify it's actually visible
+                    const computedStyle = window.getComputedStyle(emailDetailsDiv);
+                    const rect = emailDetailsDiv.getBoundingClientRect();
+                    const isVisible = computedStyle.display !== 'none' && 
+                                     computedStyle.visibility !== 'hidden' && 
+                                     computedStyle.opacity !== '0' &&
+                                     rect.width > 0 &&
+                                     rect.height > 0;
+                    
+                    console.log('Email details section visibility:', {
+                        display: computedStyle.display,
+                        visibility: computedStyle.visibility,
+                        opacity: computedStyle.opacity,
+                        width: rect.width,
+                        height: rect.height,
+                        isVisible: isVisible,
+                        parentDisplay: parentFormGroup ? window.getComputedStyle(parentFormGroup).display : 'N/A'
+                    });
+                    
+                    if (isVisible) {
+                        console.log('Email details section is now visible');
+                        return true; // Success
+                    } else {
+                        console.log('Email details section still not visible after style changes');
+                        return false; // Still not visible, need to retry
+                    }
+                } else {
+                    // Hide if no email data
+                    emailDetailsDiv.style.display = 'none';
+                    console.log('No email data, hiding details section');
+                    return true;
+                }
+            };
+            
+            // Try multiple times with increasing delays to ensure it works
+            const tryShowEmailDetails = (attempt = 0) => {
+                const maxAttempts = 10;
+                if (attempt < maxAttempts) {
+                    if (!showEmailDetails()) {
+                        setTimeout(() => tryShowEmailDetails(attempt + 1), 50 * (attempt + 1));
+                    }
+                } else {
+                    console.warn('Failed to show email details after', maxAttempts, 'attempts');
+                }
+            };
+            
+            // Start trying immediately and with requestAnimationFrame
+            requestAnimationFrame(() => {
+                tryShowEmailDetails(0);
+            });
         }
 
         function openTaskForCustomer(customerId) {
@@ -5273,8 +5414,14 @@
             if (taskDeadlineInput) {
                 taskDeadlineInput.value = '';
             }
+            // Hide email details section
+            const emailDetailsDiv = document.getElementById('task-email-details');
+            if (emailDetailsDiv) {
+                emailDetailsDiv.style.display = 'none';
+            }
             window.taskModalAttachments = [];
             window.taskModalEmailIndex = null;
+            window.currentTaskEmail = null;
         }
 
         function removeTaskAttachment(index) {
