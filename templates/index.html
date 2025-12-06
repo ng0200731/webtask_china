@@ -37,6 +37,13 @@
             gap: 15px;
             transition: width 0.2s ease;
             overflow: hidden;
+            position: relative;
+        }
+
+        .logout-button-container {
+            margin-top: auto;
+            padding-top: 20px;
+            border-top: 2px solid #000000;
         }
 
         .left-menu:hover {
@@ -1302,6 +1309,12 @@
                 <span class="label-short">S</span>
                 <span class="label-full">Settings</span>
             </button>
+            <div class="logout-button-container">
+                <button class="menu-button" onclick="handleLogout()">
+                    <span class="label-short">L</span>
+                    <span class="label-full">Logout</span>
+                </button>
+            </div>
         </div>
         <div class="right-content">
             <div class="loading-overlay" id="email-loading-overlay">
@@ -3612,6 +3625,30 @@
             loadTaskTypes();
             // Load countries list
             loadCountries();
+        }
+
+        function handleLogout() {
+            if (confirm('Are you sure you want to logout?')) {
+                fetch('/api/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = '/login';
+                    } else {
+                        alert('Logout failed. Please try again.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Logout error:', error);
+                    // Even if there's an error, redirect to login
+                    window.location.href = '/login';
+                });
+            }
         }
 
         function showSettings() {
