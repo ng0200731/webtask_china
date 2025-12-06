@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Mail Task</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input[type="email"],
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="email"]:focus,
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-group input {
+            flex: 1;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-submit {
+            width: 100%;
+            background: #764ba2;
+            color: white;
+            margin-top: 10px;
+        }
+
+        .btn-submit:hover {
+            background: #653a8a;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .code-input {
+            font-size: 24px;
+            text-align: center;
+            letter-spacing: 8px;
+            font-weight: bold;
+        }
+
+        .code-input::placeholder {
+            letter-spacing: 0;
+            font-weight: normal;
+            font-size: 16px;
+        }
+
+        .resend-info {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .resend-link {
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .resend-link:hover {
+            color: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>Mail Task</h1>
+        <p class="subtitle">Please verify your email to continue</p>
+
+        <div id="message" class="message"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <div class="input-group">
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        placeholder="your.email@example.com" 
+                        required
+                        autocomplete="email"
+                    >
+                    <button type="button" id="sendBtn" class="btn btn-primary">Send</button>
+                </div>
+            </div>
+
+            <div class="form-group" id="codeGroup" style="display: none;">
+                <label for="code">Verification Code</label>
+                <input 
+                    type="text" 
+                    id="code" 
+                    name="code" 
+                    placeholder="Enter 6-digit code" 
+                    maxlength="6"
+                    pattern="[0-9]{6}"
+                    class="code-input"
+                    autocomplete="off"
+                >
+                <div class="resend-info">
+                    Didn't receive the code? 
+                    <span class="resend-link" id="resendLink">Resend</span>
+                </div>
+            </div>
+
+            <button type="submit" id="submitBtn" class="btn btn-submit" style="display: none;">Verify & Login</button>
+        </form>
+    </div>
+
+    <script>
+        const emailInput = document.getElementById('email');
+        const codeInput = document.getElementById('code');
+        const sendBtn = document.getElementById('sendBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const codeGroup = document.getElementById('codeGroup');
+        const messageDiv = document.getElementById('message');
+        const resendLink = document.getElementById('resendLink');
+        const loginForm = document.getElementById('loginForm');
+
+        let currentEmail = '';
+
+        function showMessage(text, type) {
+            messageDiv.textContent = text;
+            messageDiv.className = `message show ${type}`;
+            setTimeout(() => {
+                messageDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        function sendCode() {
+            const email = emailInput.value.trim();
+            
+            if (!email || !email.includes('@')) {
+                showMessage('Please enter a valid email address', 'error');
+                return;
+            }
+
+            currentEmail = email;
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Sending...';
+
+            fetch('/api/send-verification-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email: email })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage('Verification code sent to your email!', 'success');
+                    codeGroup.style.display = 'block';
+                    submitBtn.style.display = 'block';
+                    codeInput.focus();
+                    emailInput.disabled = true;
+                } else {
+                    showMessage(data.error || 'Failed to send verification code', 'error');
+                    sendBtn.disabled = false;
+                    sendBtn.textContent = 'Send';
+                }
+            })
+            .catch(error => {
+                showMessage('Error sending verification code. Please try again.', 'error');
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send';
+            });
+        }
+
+        sendBtn.addEventListener('click', sendCode);
+
+        resendLink.addEventListener('click', () => {
+            if (currentEmail) {
+                sendCode();
+            }
+        });
+
+        // Allow Enter key to send code
+        emailInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !codeGroup.style.display || codeGroup.style.display === 'none') {
+                e.preventDefault();
+                sendCode();
+            }
+        });
+
+        // Only allow numbers in code input
+        codeInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '');
+        });
+
+        // Auto-submit when 6 digits are entered
+        codeInput.addEventListener('input', (e) => {
+            if (e.target.value.length === 6) {
+                loginForm.dispatchEvent(new Event('submit'));
+            }
+        });
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const email = emailInput.value.trim();
+            const code = codeInput.value.trim();
+
+            if (!code || code.length !== 6) {
+                showMessage('Please enter the 6-digit verification code', 'error');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Verifying...';
+
+            fetch('/api/verify-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email: email, code: code })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage('Login successful! Redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1000);
+                } else {
+                    showMessage(data.error || 'Invalid verification code', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Verify & Login';
+                    codeInput.value = '';
+                    codeInput.focus();
+                }
+            })
+            .catch(error => {
+                showMessage('Error verifying code. Please try again.', 'error');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Verify & Login';
+            });
+        });
+    </script>
+</body>
+</html>
+

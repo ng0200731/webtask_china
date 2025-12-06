@@ -13,6 +13,8 @@ import json
 import base64
 from pathlib import Path
 import sqlite3
+import random
+import threading
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -52,18 +54,6 @@ QQ_CONFIG = {
 }
 
 SMTP_PRIMARY_CONFIG = {
-    'name': 'Gmail SMTP',
-    'server': 'smtp.gmail.com',
-    'port': 587,
-    'use_ssl': False,
-    'use_tls': True,
-    'username': 'eric.brilliant@gmail.com',
-    'password': 'opqx pfna kagb bznr',
-    'sender_name': 'Mail Task',
-    'from_address': 'eric.brilliant@gmail.com'
-}
-
-SMTP_BACKUP_CONFIG = {
     'name': '163.com SMTP',
     'server': 'smtp.163.com',
     'port': 465,
@@ -71,8 +61,20 @@ SMTP_BACKUP_CONFIG = {
     'use_tls': False,
     'username': '19902475292@163.com',
     'password': 'JDy8MigeNmsESZRa',
-    'sender_name': 'Mail Task Backup',
+    'sender_name': 'Mail Task',
     'from_address': '19902475292@163.com'
+}
+
+SMTP_BACKUP_CONFIG = {
+    'name': 'Gmail SMTP',
+    'server': 'smtp.gmail.com',
+    'port': 587,
+    'use_ssl': False,
+    'use_tls': True,
+    'username': 'eric.brilliant@gmail.com',
+    'password': 'opqx pfna kagb bznr',
+    'sender_name': 'Mail Task Backup',
+    'from_address': 'eric.brilliant@gmail.com'
 }
 
 DEFAULT_SMTP_CONFIGS = [SMTP_PRIMARY_CONFIG, SMTP_BACKUP_CONFIG]
@@ -86,6 +88,11 @@ GMAIL_OAUTH_CONFIG = {
     'redirect_uri': os.environ.get('GMAIL_REDIRECT_URI', 'http://localhost:5000/oauth2callback'),
     'scopes': ['https://www.googleapis.com/auth/gmail.readonly']
 }
+
+# Verification code storage (in-memory, expires after 10 minutes)
+verification_codes = {}
+verification_lock = threading.Lock()
+VERIFICATION_CODE_EXPIRY = timedelta(minutes=10)
 
 
 def get_db_connection():
@@ -763,6 +770,53 @@ def send_email_with_configs(configs, subject, body, recipients, is_html=False, s
     return {'success': False, 'errors': attempts}
 
 
+def generate_verification_code() -> str:
+    """Generate a random 6-digit numeric code"""
+    return str(random.randint(100000, 999999))
+
+
+def store_verification_code(email: str, code: str):
+    """Store verification code with expiration time"""
+    with verification_lock:
+        verification_codes[email.lower()] = {
+            'code': code,
+            'expires_at': datetime.now() + VERIFICATION_CODE_EXPIRY
+        }
+
+
+def verify_code(email: str, code: str) -> bool:
+    """Verify the code for the given email"""
+    email_lower = email.lower()
+    with verification_lock:
+        if email_lower not in verification_codes:
+            return False
+        
+        stored_data = verification_codes[email_lower]
+        if datetime.now() > stored_data['expires_at']:
+            # Code expired, remove it
+            del verification_codes[email_lower]
+            return False
+        
+        if stored_data['code'] == code:
+            # Code verified, remove it
+            del verification_codes[email_lower]
+            return True
+        
+        return False
+
+
+def cleanup_expired_codes():
+    """Remove expired verification codes"""
+    with verification_lock:
+        now = datetime.now()
+        expired_emails = [
+            email for email, data in verification_codes.items()
+            if now > data['expires_at']
+        ]
+        for email in expired_emails:
+            del verification_codes[email]
+
+
 def save_oauth_token(provider: str, creds: Credentials):
     """Save OAuth token to database"""
     connection = get_db_connection()
@@ -1250,9 +1304,91 @@ def fetch_emails(imap_server, port, username, password, use_ssl=True, use_tls=Fa
     return {'emails': emails, 'count': len(emails)}
 
 
+@app.route('/login')
+def login():
+    """Login page"""
+    return render_template('login.html')
+
+
 @app.route('/')
 def index():
+    """Main page - requires login"""
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
     return render_template('index.html', version=app.config['VERSION'])
+
+
+@app.route('/api/send-verification-code', methods=['POST'])
+def send_verification_code():
+    """Send verification code to user's email"""
+    data = request.json or {}
+    email = data.get('email', '').strip()
+    
+    if not email or '@' not in email:
+        return jsonify({'error': 'Valid email address is required'}), 400
+    
+    # Clean up expired codes
+    cleanup_expired_codes()
+    
+    # Generate verification code
+    code = generate_verification_code()
+    store_verification_code(email, code)
+    
+    # Send email using 163.com SMTP (primary)
+    subject = 'Your Login Verification Code'
+    body = f'''
+    <html>
+    <body style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Login Verification Code</h2>
+        <p>Your verification code is:</p>
+        <h1 style="color: #007bff; font-size: 32px; letter-spacing: 5px;">{code}</h1>
+        <p>This code will expire in 10 minutes.</p>
+        <p>If you did not request this code, please ignore this email.</p>
+    </body>
+    </html>
+    '''
+    
+    result = send_email_with_configs(
+        [SMTP_PRIMARY_CONFIG],  # Use 163.com SMTP
+        subject,
+        body,
+        [email],
+        is_html=True,
+        sender_name='Mail Task'
+    )
+    
+    if result.get('success'):
+        return jsonify({'success': True, 'message': 'Verification code sent to your email'})
+    else:
+        return jsonify({
+            'error': 'Failed to send verification code',
+            'details': result.get('errors', [])
+        }), 500
+
+
+@app.route('/api/verify-code', methods=['POST'])
+def verify_verification_code():
+    """Verify the code and log in the user"""
+    data = request.json or {}
+    email = data.get('email', '').strip()
+    code = data.get('code', '').strip()
+    
+    if not email or not code:
+        return jsonify({'error': 'Email and code are required'}), 400
+    
+    if verify_code(email, code):
+        session['logged_in'] = True
+        session['user_email'] = email
+        return jsonify({'success': True, 'message': 'Login successful'})
+    else:
+        return jsonify({'error': 'Invalid or expired verification code'}), 401
+
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    """Log out the user"""
+    session.clear()
+    return jsonify({'success': True, 'message': 'Logged out successfully'})
 
 
 @app.route('/api/gmail-auth', methods=['GET'])

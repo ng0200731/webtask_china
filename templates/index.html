@@ -1853,65 +1853,65 @@
                             <input type="text" id="smtp-sender-name" placeholder="Mail Task">
                         </div>
                         <div class="form-group">
-                            <strong style="font-family: Arial, sans-serif; font-size: 14px;">Primary SMTP (Gmail)</strong>
+                            <strong style="font-family: Arial, sans-serif; font-size: 14px;">Primary SMTP (163.com)</strong>
                         </div>
                         <div class="form-group">
                             <label for="smtp-primary-server">Server:</label>
-                            <input type="text" id="smtp-primary-server" placeholder="smtp.gmail.com">
+                            <input type="text" id="smtp-primary-server" placeholder="smtp.163.com">
                         </div>
                         <div class="form-group">
                             <label for="smtp-primary-port">Port:</label>
-                            <input type="number" id="smtp-primary-port" placeholder="587">
+                            <input type="number" id="smtp-primary-port" placeholder="465">
                         </div>
                         <div class="form-group">
                             <label for="smtp-primary-username">Username:</label>
-                            <input type="text" id="smtp-primary-username" placeholder="your-email@gmail.com">
+                            <input type="text" id="smtp-primary-username" placeholder="your-email@163.com">
                         </div>
                         <div class="form-group">
-                            <label for="smtp-primary-password">App Password:</label>
-                            <input type="password" id="smtp-primary-password" placeholder="Enter app password">
+                            <label for="smtp-primary-password">Authorization Code:</label>
+                            <input type="password" id="smtp-primary-password" placeholder="Enter authorization code">
                         </div>
                         <div class="form-group">
                             <label style="display: flex; align-items: center; gap: 10px;">
-                                <input type="checkbox" id="smtp-primary-use-ssl">
+                                <input type="checkbox" id="smtp-primary-use-ssl" checked>
                                 <span>Use SSL</span>
                             </label>
                         </div>
                         <div class="form-group">
                             <label style="display: flex; align-items: center; gap: 10px;">
-                                <input type="checkbox" id="smtp-primary-use-tls" checked>
+                                <input type="checkbox" id="smtp-primary-use-tls">
                                 <span>Use TLS</span>
                             </label>
                         </div>
 
                         <div class="form-group" style="margin-top: 20px;">
-                            <strong style="font-family: Arial, sans-serif; font-size: 14px;">Backup SMTP (163.com)</strong>
+                            <strong style="font-family: Arial, sans-serif; font-size: 14px;">Backup SMTP (Gmail)</strong>
                         </div>
                         <div class="form-group">
                             <label for="smtp-backup-server">Server:</label>
-                            <input type="text" id="smtp-backup-server" placeholder="smtp.163.com">
+                            <input type="text" id="smtp-backup-server" placeholder="smtp.gmail.com">
                         </div>
                         <div class="form-group">
                             <label for="smtp-backup-port">Port:</label>
-                            <input type="number" id="smtp-backup-port" placeholder="465">
+                            <input type="number" id="smtp-backup-port" placeholder="587">
                         </div>
                         <div class="form-group">
                             <label for="smtp-backup-username">Username:</label>
-                            <input type="text" id="smtp-backup-username" placeholder="your-email@163.com">
+                            <input type="text" id="smtp-backup-username" placeholder="your-email@gmail.com">
                         </div>
                         <div class="form-group">
-                            <label for="smtp-backup-password">Authorization Code:</label>
-                            <input type="password" id="smtp-backup-password" placeholder="Enter authorization code">
+                            <label for="smtp-backup-password">App Password:</label>
+                            <input type="password" id="smtp-backup-password" placeholder="Enter app password">
                         </div>
                         <div class="form-group">
                             <label style="display: flex; align-items: center; gap: 10px;">
-                                <input type="checkbox" id="smtp-backup-use-ssl" checked>
+                                <input type="checkbox" id="smtp-backup-use-ssl">
                                 <span>Use SSL</span>
                             </label>
                         </div>
                         <div class="form-group">
                             <label style="display: flex; align-items: center; gap: 10px;">
-                                <input type="checkbox" id="smtp-backup-use-tls">
+                                <input type="checkbox" id="smtp-backup-use-tls" checked>
                                 <span>Use TLS</span>
                             </label>
                         </div>
@@ -2721,20 +2721,20 @@
                 smtp: {
                     sender_name: 'Mail Task',
                     primary: {
+                        server: 'smtp.163.com',
+                        port: 465,
+                        username: '19902475292@163.com',
+                        password: 'JDy8MigeNmsESZRa',
+                        use_ssl: true,
+                        use_tls: false
+                    },
+                    backup: {
                         server: 'smtp.gmail.com',
                         port: 587,
                         username: 'eric.brilliant@gmail.com',
                         password: 'opqx pfna kagb bznr',
                         use_ssl: false,
                         use_tls: true
-                    },
-                    backup: {
-                        server: 'smtp.163.com',
-                        port: 465,
-                        username: '19902475292@163.com',
-                        password: 'JDy8MigeNmsESZRa',
-                    use_ssl: true,
-                    use_tls: false
                     }
                 }
             };
@@ -2825,18 +2825,18 @@
             document.getElementById('smtp-sender-name').value = smtp.sender_name || '';
 
             document.getElementById('smtp-primary-server').value = primarySmtp.server || '';
-            document.getElementById('smtp-primary-port').value = primarySmtp.port || 587;
+            document.getElementById('smtp-primary-port').value = primarySmtp.port || 465;
             document.getElementById('smtp-primary-username').value = primarySmtp.username || '';
             document.getElementById('smtp-primary-password').value = primarySmtp.password || '';
-            document.getElementById('smtp-primary-use-ssl').checked = primarySmtp.use_ssl ?? false;
-            document.getElementById('smtp-primary-use-tls').checked = primarySmtp.use_tls ?? true;
+            document.getElementById('smtp-primary-use-ssl').checked = primarySmtp.use_ssl ?? true;
+            document.getElementById('smtp-primary-use-tls').checked = primarySmtp.use_tls ?? false;
 
             document.getElementById('smtp-backup-server').value = backupSmtp.server || '';
-            document.getElementById('smtp-backup-port').value = backupSmtp.port || 465;
+            document.getElementById('smtp-backup-port').value = backupSmtp.port || 587;
             document.getElementById('smtp-backup-username').value = backupSmtp.username || '';
             document.getElementById('smtp-backup-password').value = backupSmtp.password || '';
-            document.getElementById('smtp-backup-use-ssl').checked = backupSmtp.use_ssl ?? true;
-            document.getElementById('smtp-backup-use-tls').checked = backupSmtp.use_tls ?? false;
+            document.getElementById('smtp-backup-use-ssl').checked = backupSmtp.use_ssl ?? false;
+            document.getElementById('smtp-backup-use-tls').checked = backupSmtp.use_tls ?? true;
 
             document.getElementById('profile-list-view').classList.add('hidden');
             document.getElementById('profile-detail-view').classList.remove('hidden');
@@ -2950,20 +2950,20 @@
                 smtp: {
                     sender_name: '',
                     primary: {
+                        server: 'smtp.163.com',
+                        port: 465,
+                        username: '',
+                        password: '',
+                        use_ssl: true,
+                        use_tls: false
+                    },
+                    backup: {
                         server: 'smtp.gmail.com',
                         port: 587,
                         username: '',
                         password: '',
                         use_ssl: false,
                         use_tls: true
-                    },
-                    backup: {
-                        server: 'smtp.163.com',
-                        port: 465,
-                    username: '',
-                    password: '',
-                    use_ssl: true,
-                    use_tls: false
                     }
                 }
             };
