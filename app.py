@@ -1733,6 +1733,80 @@ def update_user_by_email():
         return jsonify({'error': f'Database error: {str(exc)}'}), 500
 
 
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """Delete user by ID"""
+    if not session.get('logged_in'):
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Check if user exists
+        cursor.execute("SELECT email FROM users WHERE id = ?", (user_id,))
+        user = cursor.fetchone()
+        
+        if not user:
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Delete the user
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        connection.commit()
+        deleted = cursor.rowcount > 0
+        cursor.close()
+        connection.close()
+        
+        if not deleted:
+            return jsonify({'error': 'Failed to delete user'}), 500
+        
+        return jsonify({'success': True, 'message': 'User deleted successfully'})
+    except Exception as exc:
+        return jsonify({'error': f'Database error: {str(exc)}'}), 500
+
+
+@app.route('/api/users/by-email', methods=['DELETE'])
+def delete_user_by_email():
+    """Delete user by email"""
+    if not session.get('logged_in'):
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    data = request.json or {}
+    email = (data.get('email') or '').strip()
+    
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Check if user exists
+        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        user = cursor.fetchone()
+        
+        if not user:
+            cursor.close()
+            connection.close()
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Delete the user
+        cursor.execute("DELETE FROM users WHERE email = ?", (email,))
+        connection.commit()
+        deleted = cursor.rowcount > 0
+        cursor.close()
+        connection.close()
+        
+        if not deleted:
+            return jsonify({'error': 'Failed to delete user'}), 500
+        
+        return jsonify({'success': True, 'message': 'User deleted successfully'})
+    except Exception as exc:
+        return jsonify({'error': f'Database error: {str(exc)}'}), 500
+
+
 @app.route('/api/export/customers', methods=['GET'])
 def export_customers():
     """Export customers to Excel - requires level 2+"""

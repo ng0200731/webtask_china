@@ -1625,10 +1625,11 @@
                                 <th style="width: 15%;">Created At</th>
                                 <th style="width: 15%;">Last Login</th>
                                 <th style="width: 10%;">Login Count</th>
+                                <th style="width: 10%;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="users-table-body">
-                            <tr><td colspan="6" style="text-align: center; padding: 20px;">Loading users...</td></tr>
+                            <tr><td colspan="7" style="text-align: center; padding: 20px;">Loading users...</td></tr>
                         </tbody>
                     </table>
                     <div style="margin-top: 15px; font-size: 12px; color: #666;">
@@ -3823,7 +3824,7 @@
             
             if (!tableBody) return;
             
-            tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">Loading users...</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">Loading users...</td></tr>';
             
             if (statusDiv) {
                 statusDiv.classList.add('hidden');
@@ -3839,7 +3840,7 @@
                     const users = data.users || [];
                     
                     if (users.length === 0) {
-                        tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">No users found.</td></tr>';
+                        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">No users found.</td></tr>';
                         return;
                     }
                     
@@ -3872,6 +3873,9 @@
                                 <td>${escapeHtml(createdAt)}</td>
                                 <td>${escapeHtml(lastLogin)}</td>
                                 <td>${loginCount}</td>
+                                <td>
+                                    <button class="form-button" onclick="deleteUser('${user.id ? user.id : userEmail}', '${userEmail}')" style="background-color: #dc3545; color: white; padding: 5px 10px; font-size: 12px; border: 1px solid #000000; cursor: pointer;">Delete</button>
+                                </td>
                             </tr>
                         `;
                     }).join('');
@@ -3879,13 +3883,63 @@
                     tableBody.innerHTML = rows;
                 })
                 .catch(error => {
-                    tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: #dc3545;">Error loading users: ${escapeHtml(error.message)}</td></tr>`;
+                    tableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: #dc3545;">Error loading users: ${escapeHtml(error.message)}</td></tr>`;
                     if (statusDiv) {
                         statusDiv.textContent = `Error: ${error.message}`;
                         statusDiv.className = 'message error';
                         statusDiv.classList.remove('hidden');
                     }
                 });
+        }
+
+        function deleteUser(userIdOrEmail, userEmail) {
+            // Prompt user for confirmation
+            const confirmed = confirm(`Are you sure you want to delete user:\n\n${userEmail}\n\nThis action cannot be undone!`);
+            
+            if (!confirmed) {
+                return;
+            }
+            
+            const statusDiv = document.getElementById('users-status');
+            const isEmail = userIdOrEmail.includes('@');
+            
+            const url = isEmail ? '/api/users/by-email' : `/api/users/${userIdOrEmail}`;
+            const method = 'DELETE';
+            const body = isEmail ? JSON.stringify({ email: userIdOrEmail }) : null;
+            
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+            
+            if (body) {
+                options.body = body;
+            }
+            
+            fetch(url, options)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                if (statusDiv) {
+                    statusDiv.textContent = 'User deleted successfully';
+                    statusDiv.className = 'message info';
+                    statusDiv.classList.remove('hidden');
+                    setTimeout(() => statusDiv.classList.add('hidden'), 3000);
+                }
+                // Reload to refresh data
+                loadUsers();
+            })
+            .catch(error => {
+                if (statusDiv) {
+                    statusDiv.textContent = `Error: ${error.message}`;
+                    statusDiv.className = 'message error';
+                    statusDiv.classList.remove('hidden');
+                }
+            });
         }
 
         function updateUserLevel(userIdOrEmail, level) {
