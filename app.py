@@ -317,6 +317,9 @@ def initialize_database():
             cursor.execute("UPDATE tasks SET updated_at = created_at WHERE updated_at IS NULL")
         if 'created_by' not in task_columns:
             cursor.execute("ALTER TABLE tasks ADD COLUMN created_by TEXT")
+        if 'status' not in task_columns:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN status TEXT DEFAULT 'open'")
+            cursor.execute("UPDATE tasks SET status = 'open' WHERE status IS NULL")
         # Update existing records to set created_by
         cursor.execute("UPDATE tasks SET created_by = 'eric.brilliant@gmail.com' WHERE created_by IS NULL")
         # Countries table for dropdown options
@@ -2768,6 +2771,15 @@ def handle_tasks():
             except sqlite3.OperationalError:
                 connection.rollback()  # Column already exists, rollback any partial changes
                 pass
+            # Always try to add status column if it doesn't exist (idempotent)
+            try:
+                cursor.execute("ALTER TABLE tasks ADD COLUMN status TEXT DEFAULT 'open'")
+                cursor.execute("UPDATE tasks SET status = 'open' WHERE status IS NULL")
+                connection.commit()
+                cursor.execute("PRAGMA table_info(tasks)")
+            except sqlite3.OperationalError:
+                connection.rollback()  # Column already exists, rollback any partial changes
+                pass
             
             user_email = session.get('user_email')
             if not user_email:
@@ -2790,6 +2802,7 @@ def handle_tasks():
                         t.template,
                         t.attachments,
                         t.deadline,
+                        t.status,
                         t.created_at,
                         t.updated_at,
                         t.created_by,
@@ -2828,6 +2841,7 @@ def handle_tasks():
                             t.template,
                             t.attachments,
                             t.deadline,
+                            COALESCE(t.status, 'open') AS status,
                             t.created_at,
                             t.updated_at,
                             t.created_by,
@@ -2866,6 +2880,11 @@ def handle_tasks():
                 except (KeyError, IndexError):
                     created_by = None
                 
+                try:
+                    status = row['status']
+                except (KeyError, IndexError):
+                    status = 'open'
+                
                 tasks.append({
                     'id': row['id'],
                     'sequence': row['sequence'],
@@ -2875,6 +2894,7 @@ def handle_tasks():
                     'template': row['template'],
                     'attachments': attachments,
                     'deadline': row['deadline'],
+                    'status': status or 'open',
                     'created_at': row['created_at'],
                     'updated_at': row['updated_at'],
                     'created_by': created_by,
@@ -2920,6 +2940,9 @@ def handle_tasks():
         deadline = data.get('deadline')
         if isinstance(deadline, str):
             deadline = deadline.strip() or None
+        status = data.get('status', 'open').strip()
+        if status not in ['open', 'close']:
+            status = 'open'
         
         if not catalogue:
             return jsonify({'error': 'Catalogue is required'}), 400
@@ -2934,9 +2957,9 @@ def handle_tasks():
             cursor = connection.cursor()
             created_by = session.get('user_email', 'eric.brilliant@gmail.com')
             cursor.execute("""
-                INSERT INTO tasks (sequence, customer, email, catalogue, template, attachments, deadline, created_at, updated_at, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)
-            """, (sequence, customer, email, catalogue, template, attachments_json, deadline, created_by))
+                INSERT INTO tasks (sequence, customer, email, catalogue, template, attachments, deadline, status, created_at, updated_at, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)
+            """, (sequence, customer, email, catalogue, template, attachments_json, deadline, status, created_by))
             connection.commit()
             task_id = cursor.lastrowid
             cursor.execute("SELECT created_at, updated_at FROM tasks WHERE id = ?", (task_id,))
@@ -2951,6 +2974,7 @@ def handle_tasks():
                 'sequence': sequence,
                 'customer': customer,
                 'email': email,
+                'status': status,
                 'catalogue': catalogue,
                 'template': template,
                 'attachments': attachments,
@@ -2995,6 +3019,9 @@ def handle_single_task(task_id):
         customer = (data.get('customer') or '').strip()
         attachments = data.get('attachments')
         deadline = (data.get('deadline') or '').strip() or None
+        status = (data.get('status') or 'open').strip()
+        if status not in ['open', 'close']:
+            status = 'open'
         
         if not catalogue:
             return jsonify({'error': 'Catalogue is required'}), 400
@@ -3025,7 +3052,8 @@ def handle_single_task(task_id):
         update_fields = [
             ('catalogue', catalogue),
             ('template', template),
-            ('deadline', deadline)
+            ('deadline', deadline),
+            ('status', status)
         ]
         
         if email:
