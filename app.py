@@ -5,7 +5,7 @@ import email
 from email.header import decode_header
 from email.mime.text import MIMEText
 from datetime import datetime, date, timedelta
-from typing import Optional
+from typing import Optional, Any
 import ssl
 import smtplib
 import re
@@ -16,11 +16,12 @@ from pathlib import Path
 import sqlite3
 import random
 import threading
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+# Temporarily commented out - will recover later
+# from google.auth.transport.requests import Request
+# from google.oauth2.credentials import Credentials
+# from google_auth_oauthlib.flow import Flow
+# from googleapiclient.discovery import build
+# from googleapiclient.errors import HttpError
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 from io import BytesIO
@@ -901,7 +902,7 @@ def cleanup_expired_codes():
             del verification_codes[email]
 
 
-def save_oauth_token(provider: str, creds: Credentials):
+def save_oauth_token(provider: str, creds: Any):
     """Save OAuth token to database"""
     connection = get_db_connection()
     cursor = connection.cursor()
@@ -931,8 +932,15 @@ def save_oauth_token(provider: str, creds: Credentials):
     connection.close()
 
 
-def load_oauth_token(provider: str) -> Optional[Credentials]:
+def load_oauth_token(provider: str) -> Optional[Any]:
     """Load OAuth token from database"""
+    # Temporarily disabled - Google modules not available
+    try:
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+    except ImportError:
+        return None
+    
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute("SELECT * FROM oauth_tokens WHERE provider = ?", (provider,))
@@ -981,6 +989,13 @@ def load_oauth_token(provider: str) -> Optional[Credentials]:
 
 def fetch_gmail_api(limit=50, days_back=1):
     """Fetch emails from Gmail using Gmail API"""
+    # Temporarily disabled - Google modules not available
+    try:
+        from googleapiclient.discovery import build
+        from googleapiclient.errors import HttpError
+    except ImportError:
+        return {'error': 'Gmail API modules not available. Please install google-api-python-client.', 'needs_auth': False}
+    
     emails = []
     today = datetime.now().date()
     lookback_days = max(0, days_back)
@@ -1143,23 +1158,27 @@ def fetch_gmail_api(limit=50, days_back=1):
                 continue
         
         return {'emails': emails, 'count': len(emails)}
-    except HttpError as e:
-        error_str = str(e)
-        # Check if it's an authentication error
-        if 'invalid_grant' in error_str.lower() or 'token has been expired' in error_str.lower() or 'revoked' in error_str.lower():
-            # Clear the invalid token
-            try:
-                connection = get_db_connection()
-                cursor = connection.cursor()
-                cursor.execute("DELETE FROM oauth_tokens WHERE provider = ?", ('gmail',))
-                connection.commit()
-                cursor.close()
-                connection.close()
-            except Exception:
-                pass
-            return {'error': 'Gmail OAuth token has expired or been revoked. Please re-authenticate.', 'needs_auth': True}
-        return {'error': f'Gmail API error: {error_str}'}
     except Exception as e:
+        # Check if it's HttpError (only if module is available)
+        error_type = type(e).__name__
+        if error_type == 'HttpError':
+            error_str = str(e)
+            # Check if it's an authentication error
+            if 'invalid_grant' in error_str.lower() or 'token has been expired' in error_str.lower() or 'revoked' in error_str.lower():
+                # Clear the invalid token
+                try:
+                    connection = get_db_connection()
+                    cursor = connection.cursor()
+                    cursor.execute("DELETE FROM oauth_tokens WHERE provider = ?", ('gmail',))
+                    connection.commit()
+                    cursor.close()
+                    connection.close()
+                except Exception:
+                    pass
+                return {'error': 'Gmail OAuth token has expired or been revoked. Please re-authenticate.', 'needs_auth': True}
+            return {'error': f'Gmail API error: {error_str}'}
+        
+        # General exception handling
         error_str = str(e)
         # Check if it's an authentication error
         if 'invalid_grant' in error_str.lower() or 'token has been expired' in error_str.lower() or 'revoked' in error_str.lower():
@@ -1994,6 +2013,12 @@ def gmail_auth():
         return jsonify({'error': f'Invalid Client Secret format. Should start with GOCSPX-. Please check your Google Cloud Console.'}), 400
     
     try:
+        # Temporarily disabled - Google modules not available
+        try:
+            from google_auth_oauthlib.flow import Flow
+        except ImportError:
+            return jsonify({'error': 'Gmail OAuth modules not available. Please install google-auth-oauthlib.'}), 500
+        
         flow = Flow.from_client_config(
             {
                 "web": {
@@ -2101,6 +2126,11 @@ def oauth2callback():
         redirect_uri = GMAIL_OAUTH_CONFIG.get('redirect_uri', 'http://localhost:5000/oauth2callback')
     
     try:
+        # Temporarily disabled - Google modules not available
+        try:
+            from google_auth_oauthlib.flow import Flow
+        except ImportError:
+            return '<html><body><h1>Authentication Failed</h1><p>Gmail OAuth modules not available. Please install google-auth-oauthlib.</p><script>setTimeout(() => window.close(), 3000);</script></body></html>', 500
         
         flow = Flow.from_client_config(
             {
@@ -2158,6 +2188,12 @@ def gmail_status():
     creds = load_oauth_token('gmail')
     if creds:
         try:
+            # Temporarily disabled - Google modules not available
+            try:
+                from googleapiclient.discovery import build
+            except ImportError:
+                return jsonify({'authenticated': False, 'error': 'Gmail API modules not available'})
+            
             # Try to verify token is valid
             service = build('gmail', 'v1', credentials=creds)
             profile = service.users().getProfile(userId='me').execute()
