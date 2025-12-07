@@ -3049,6 +3049,7 @@ def handle_single_task(task_id):
             connection.close()
             return jsonify({'error': 'Task not found or access denied'}), 404
         
+        # Only allow editing: catalogue, template, deadline, status
         update_fields = [
             ('catalogue', catalogue),
             ('template', template),
@@ -3056,10 +3057,8 @@ def handle_single_task(task_id):
             ('status', status)
         ]
         
-        if email:
-            update_fields.append(('email', email))
-        if customer:
-            update_fields.append(('customer', customer))
+        # Note: email, customer, and attachments are not editable in task list edit
+        # They can only be changed through other means (create task, etc.)
         if attachments_json is not None:
             update_fields.append(('attachments', attachments_json))
         

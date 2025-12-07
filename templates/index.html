@@ -6781,9 +6781,9 @@
                 <tr class="task-editing-row" ${rowAttributes}>
                     <td>${escapeHtml(task.sequence || '')}</td>
                     <td>${escapeHtml(businessType)}</td>
-                    <td><input type="text" class="inline-task-input" data-field="customer" value="${escapeHtml(task.customer || '')}"></td>
-                    <td><input type="text" class="inline-task-input" data-field="company_name" value="${escapeHtml(companyName)}" readonly></td>
-                    <td><input type="text" class="inline-task-input" data-field="email" value="${escapeHtml(task.email || '')}"></td>
+                    <td>${escapeHtml(task.customer || '')}</td>
+                    <td>${escapeHtml(companyName)}</td>
+                    <td>${escapeHtml(task.email || '')}</td>
                     <td>
                         <select class="inline-task-type-select" data-field="catalogue">
                             ${typeOptions}
@@ -7010,8 +7010,6 @@
                 if (inlineRow && inlineRow.classList.contains('task-editing-row')) {
                     const typeSelect = inlineRow.querySelector('.inline-task-type-select');
                     const templateInput = inlineRow.querySelector('.inline-task-template-input');
-                    const emailInput = inlineRow.querySelector('.inline-task-input[data-field="email"]');
-                    const customerInput = inlineRow.querySelector('.inline-task-input[data-field="customer"]');
                     const deadlineInput = inlineRow.querySelector('.inline-task-input[data-field="deadline"]');
                     const statusSelect = inlineRow.querySelector('.inline-task-input[data-field="status"]');
 
@@ -7029,8 +7027,6 @@
                     const payload = {
                         catalogue,
                         template,
-                        email: emailInput ? emailInput.value.trim() : '',
-                        customer: customerInput ? customerInput.value.trim() : '',
                         deadline: deadlineInput ? (deadlineInput.value || null) : null,
                         status: statusSelect ? statusSelect.value : 'open'
                     };
