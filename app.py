@@ -416,6 +416,7 @@ def initialize_database():
             ('Myanmar', 27),
             ('Colombia', 28),
             ('South Korea', 29),
+            ('Hong Kong', 30),
             ('Sudan', 30),
             ('Uganda', 31),
             ('Spain', 32),
@@ -583,12 +584,23 @@ def initialize_database():
             ('Tuvalu', 194),
             ('Holy See', 195)
         ]
-        # Replace all countries with the new list
-        cursor.execute("DELETE FROM countries")
-        cursor.executemany("""
-            INSERT INTO countries (name, display_order) VALUES (?, ?)
-        """, default_countries)
-        connection.commit()
+        # Initialize countries only if table is empty, otherwise preserve existing countries
+        cursor.execute("SELECT COUNT(*) as count FROM countries")
+        if cursor.fetchone()['count'] == 0:
+            cursor.executemany("""
+                INSERT INTO countries (name, display_order) VALUES (?, ?)
+            """, default_countries)
+            connection.commit()
+        else:
+            # Ensure Hong Kong exists (add if missing)
+            cursor.execute("SELECT id FROM countries WHERE name = 'Hong Kong'")
+            if not cursor.fetchone():
+                cursor.execute("SELECT MAX(display_order) as max_order FROM countries")
+                max_order = cursor.fetchone()['max_order'] or 0
+                cursor.execute("""
+                    INSERT INTO countries (name, display_order) VALUES (?, ?)
+                """, ('Hong Kong', max_order + 1))
+                connection.commit()
     finally:
         if cursor:
             cursor.close()
@@ -823,7 +835,7 @@ def build_smtp_config_list(configs):
     return sanitized
 
 
-def send_email_with_configs(configs, subject, body, recipients, is_html=False, sender_name=None):
+def send_email_with_configs(configs, subject, body, recipients, is_html=False, sender_name=None, bcc=None):
     """Attempt to send email using provided SMTP configs with automatic fallback."""
     attempts = []
     for cfg in configs:
@@ -844,8 +856,16 @@ def send_email_with_configs(configs, subject, body, recipients, is_html=False, s
             msg['From'] = email.utils.formataddr((display_name, from_address))
             msg['To'] = ', '.join(recipients)
             msg['Subject'] = subject or ''
+            
+            # Add BCC if provided
+            if bcc:
+                msg['Bcc'] = ', '.join(bcc) if isinstance(bcc, list) else bcc
+                # Include BCC in sendmail recipients
+                all_recipients = recipients + (bcc if isinstance(bcc, list) else [bcc])
+            else:
+                all_recipients = recipients
 
-            smtp.sendmail(from_address, recipients, msg.as_string())
+            smtp.sendmail(from_address, all_recipients, msg.as_string())
             smtp.quit()
             return {'success': True, 'provider': cfg.get('name', cfg['server'])}
         except Exception as exc:
@@ -856,6 +876,156 @@ def send_email_with_configs(configs, subject, body, recipients, is_html=False, s
                 except Exception:
                     pass
     return {'success': False, 'errors': attempts}
+
+
+def get_level_3_user_emails():
+    """Get all user emails with level 3"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT email FROM users WHERE level = '3' AND status = 'active'")
+        rows = cursor.fetchall()
+        emails = [row['email'] for row in rows if row['email']]
+        cursor.close()
+        connection.close()
+        return emails
+    except Exception as e:
+        print(f"Error getting level 3 user emails: {e}")
+        return []
+
+
+def get_level_1_user_emails():
+    """Get all user emails with level 1"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT email FROM users WHERE level = '1' AND status = 'active'")
+        rows = cursor.fetchall()
+        emails = [row['email'] for row in rows if row['email']]
+        cursor.close()
+        connection.close()
+        return emails
+    except Exception as e:
+        print(f"Error getting level 1 user emails: {e}")
+        return []
+
+
+def send_notification_email(action_type, details, user_email):
+    """Send notification email to user and BCC to level 3 users"""
+    try:
+        # Get level 3 user emails for BCC
+        bcc_emails = get_level_3_user_emails()
+        
+        # Format email subject and body based on action type
+        if action_type == 'create_customer':
+            subject = f"Customer Created: {details.get('name', 'N/A')}"
+            body = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2>Customer Created</h2>
+                <p><strong>Action:</strong> Create Customer</p>
+                <p><strong>Created by:</strong> {user_email}</p>
+                <p><strong>Customer Name:</strong> {details.get('name', 'N/A')}</p>
+                <p><strong>Email:</strong> {details.get('email_suffix', 'N/A')}</p>
+                <p><strong>Company Name:</strong> {details.get('company_name', 'N/A')}</p>
+                <p><strong>Country:</strong> {details.get('country', 'N/A')}</p>
+                <p><strong>Source:</strong> {details.get('source', 'N/A')}</p>
+                <p><strong>Business Type:</strong> {details.get('business_type', 'N/A')}</p>
+                <p><strong>Website:</strong> {details.get('website', 'N/A')}</p>
+                <p><strong>Tel:</strong> {details.get('tel', 'N/A')}</p>
+                <p><strong>Address:</strong> {details.get('address', 'N/A')}</p>
+                <p><strong>Remark:</strong> {details.get('remark', 'N/A')}</p>
+                <p><strong>Created At:</strong> {details.get('created_at', datetime.now().isoformat())}</p>
+            </body>
+            </html>
+            """
+        elif action_type == 'new_task':
+            subject = f"New Task Created: {details.get('sequence', 'N/A')}"
+            body = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2>New Task Created</h2>
+                <p><strong>Action:</strong> Create New Task</p>
+                <p><strong>Created by:</strong> {user_email}</p>
+                <p><strong>Sequence:</strong> {details.get('sequence', 'N/A')}</p>
+                <p><strong>Customer:</strong> {details.get('customer', 'N/A')}</p>
+                <p><strong>Email:</strong> {details.get('email', 'N/A')}</p>
+                <p><strong>Type:</strong> {details.get('catalogue', 'N/A')}</p>
+                <p><strong>Status:</strong> {details.get('status', 'open')}</p>
+                <p><strong>Deadline:</strong> {details.get('deadline', 'N/A')}</p>
+                <p><strong>Template:</strong></p>
+                <div style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+                    {details.get('template', 'N/A')}
+                </div>
+                <p><strong>Attachments:</strong> {len(details.get('attachments', []))} file(s)</p>
+                <p><strong>Created At:</strong> {details.get('created_at', datetime.now().isoformat())}</p>
+            </body>
+            </html>
+            """
+        elif action_type == 'edit_task':
+            subject = f"Task Updated: {details.get('sequence', 'N/A')}"
+            body = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2>Task Updated</h2>
+                <p><strong>Action:</strong> Edit Task</p>
+                <p><strong>Updated by:</strong> {user_email}</p>
+                <p><strong>Task ID:</strong> {details.get('id', 'N/A')}</p>
+                <p><strong>Sequence:</strong> {details.get('sequence', 'N/A')}</p>
+                <p><strong>Customer:</strong> {details.get('customer', 'N/A')}</p>
+                <p><strong>Email:</strong> {details.get('email', 'N/A')}</p>
+                <p><strong>Type:</strong> {details.get('catalogue', 'N/A')}</p>
+                <p><strong>Status:</strong> {details.get('status', 'open')}</p>
+                <p><strong>Deadline:</strong> {details.get('deadline', 'N/A')}</p>
+                <p><strong>Template:</strong></p>
+                <div style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+                    {details.get('template', 'N/A')}
+                </div>
+                <p><strong>Updated At:</strong> {details.get('updated_at', datetime.now().isoformat())}</p>
+            </body>
+            </html>
+            """
+        elif action_type == 'follow_up_task':
+            subject = f"Follow-up Task Created: {details.get('sequence', 'N/A')}"
+            body = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2>Follow-up Task Created</h2>
+                <p><strong>Action:</strong> Create Follow-up Task</p>
+                <p><strong>Created by:</strong> {user_email}</p>
+                <p><strong>Sequence:</strong> {details.get('sequence', 'N/A')}</p>
+                <p><strong>Customer:</strong> {details.get('customer', 'N/A')}</p>
+                <p><strong>Email:</strong> {details.get('email', 'N/A')}</p>
+                <p><strong>Type:</strong> {details.get('catalogue', 'N/A')}</p>
+                <p><strong>Status:</strong> {details.get('status', 'open')}</p>
+                <p><strong>Deadline:</strong> {details.get('deadline', 'N/A')}</p>
+                <p><strong>Template:</strong></p>
+                <div style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+                    {details.get('template', 'N/A')}
+                </div>
+                <p><strong>Attachments:</strong> {len(details.get('attachments', []))} file(s)</p>
+                <p><strong>Created At:</strong> {details.get('created_at', datetime.now().isoformat())}</p>
+            </body>
+            </html>
+            """
+        else:
+            return False
+        
+        # Send email to user and BCC to level 3 users
+        configs = build_smtp_config_list(DEFAULT_SMTP_CONFIGS)
+        result = send_email_with_configs(
+            configs,
+            subject,
+            body,
+            [user_email],  # Send to the user who performed the action
+            is_html=True,
+            bcc=bcc_emails if bcc_emails else None
+        )
+        
+        return result.get('success', False)
+    except Exception as e:
+        print(f"Error sending notification email: {e}")
+        return False
 
 
 def generate_verification_code() -> str:
@@ -2502,6 +2672,26 @@ def customers_endpoint():
     try:
         created_by = session.get('user_email', 'eric.brilliant@gmail.com')
         customer_id = insert_customer(name, full_email, country, website, remark, attachments, company_name, tel, source, address, business_type, created_by)
+        
+        # Send notification email
+        try:
+            customer_details = {
+                'name': name,
+                'email_suffix': full_email,
+                'country': country,
+                'tel': tel,
+                'website': website,
+                'source': source,
+                'remark': remark,
+                'company_name': company_name,
+                'address': address,
+                'business_type': business_type,
+                'created_at': datetime.now().isoformat()
+            }
+            send_notification_email('create_customer', customer_details, created_by)
+        except Exception as email_err:
+            print(f"Error sending customer creation notification email: {email_err}")
+        
         return jsonify({
             'id': customer_id,
             'name': name,
@@ -2785,9 +2975,27 @@ def handle_tasks():
             if not user_email:
                 return jsonify({'error': 'Not authenticated'}), 401
             
+            # Get current user's level
+            user_level = get_user_level()
+            
+            # Determine which users' tasks to show
+            # Level 3 users can see all level 1 user tasks
+            if user_level == '3':
+                level_1_emails = get_level_1_user_emails()
+                # Include current user's email and all level 1 user emails
+                user_emails = [user_email] + level_1_emails
+                # Remove duplicates
+                user_emails = list(set(user_emails))
+                where_clause = "t.created_by IN ({})".format(','.join(['?'] * len(user_emails)))
+                query_params = tuple(user_emails)
+            else:
+                # Other users only see their own tasks
+                where_clause = "t.created_by = ?"
+                query_params = (user_email,)
+            
             # Try the query with email column first
             try:
-                cursor.execute("""
+                query = f"""
                     SELECT 
                         t.id,
                         t.sequence,
@@ -2822,13 +3030,14 @@ def handle_tasks():
                          ORDER BY CASE WHEN t.email IS NOT NULL AND c.email_suffix = t.email THEN 1 ELSE 2 END, c.id
                          LIMIT 1) AS customer_business_type
                     FROM tasks t
-                    WHERE t.created_by = ?
+                    WHERE {where_clause}
                     ORDER BY datetime(t.created_at) DESC
-                """, (user_email,))
+                """
+                cursor.execute(query, query_params)
             except sqlite3.OperationalError as e:
                 # If email column still doesn't exist, use fallback query
                 if 'no such column' in str(e).lower() and 'email' in str(e).lower():
-                    cursor.execute("""
+                    fallback_query = f"""
                         SELECT 
                             t.id,
                             t.sequence,
@@ -2858,9 +3067,10 @@ def handle_tasks():
                              ORDER BY c.id
                              LIMIT 1) AS customer_business_type
                         FROM tasks t
-                        WHERE t.created_by = ?
+                        WHERE {where_clause}
                         ORDER BY datetime(t.created_at) DESC
-                    """, (user_email,))
+                    """
+                    cursor.execute(fallback_query, query_params)
                 else:
                     raise  # Re-raise if it's a different error
             rows = cursor.fetchall()
@@ -2969,6 +3179,27 @@ def handle_tasks():
             cursor.close()
             connection.close()
             
+            # Send notification email for new task
+            try:
+                task_details = {
+                    'id': task_id,
+                    'sequence': sequence,
+                    'customer': customer,
+                    'email': email,
+                    'catalogue': catalogue,
+                    'template': template,
+                    'attachments': attachments,
+                    'deadline': deadline,
+                    'status': status,
+                    'created_at': created_at_value or datetime.now().isoformat()
+                }
+                # Check if this is a follow-up task (has sequence but might be related to existing task)
+                # For now, we'll treat all new tasks the same
+                action_type = 'new_task'  # Could be changed to 'follow_up_task' if we add a flag
+                send_notification_email(action_type, task_details, created_by)
+            except Exception as email_err:
+                print(f"Error sending task creation notification email: {email_err}")
+            
             return jsonify({
                 'id': task_id,
                 'sequence': sequence,
@@ -3072,11 +3303,40 @@ def handle_single_task(task_id):
         cursor.execute(f"UPDATE tasks SET {set_clause} WHERE id = ? AND created_by = ?", values)
         connection.commit()
         updated = cursor.rowcount > 0
+        
+        # Get updated task details for email notification
+        task_details = None
+        if updated:
+            cursor.execute("""
+                SELECT sequence, customer, email, catalogue, template, deadline, status, updated_at
+                FROM tasks WHERE id = ?
+            """, (task_id,))
+            task_row = cursor.fetchone()
+            if task_row:
+                task_details = {
+                    'id': task_id,
+                    'sequence': task_row['sequence'],
+                    'customer': task_row['customer'],
+                    'email': task_row['email'],
+                    'catalogue': task_row['catalogue'],
+                    'template': task_row['template'],
+                    'deadline': task_row['deadline'],
+                    'status': task_row['status'],
+                    'updated_at': task_row['updated_at'] or datetime.now().isoformat()
+                }
+        
         cursor.close()
         connection.close()
         
         if not updated:
             return jsonify({'error': 'Task not found'}), 404
+        
+        # Send notification email for task update
+        if task_details:
+            try:
+                send_notification_email('edit_task', task_details, user_email)
+            except Exception as email_err:
+                print(f"Error sending task update notification email: {email_err}")
         
         return jsonify({'status': 'updated', 'id': task_id})
     except Exception as exc:

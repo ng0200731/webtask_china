@@ -1453,6 +1453,11 @@
                         <div id="customer-status" class="message info hidden"></div>
                     </div>
                 </div>
+                <!-- Task form section in Create Customer (available for all levels) -->
+                <div id="create-customer-task-section" class="settings-section" style="margin-top: 30px;">
+                    <h3 style="font-family: Arial, sans-serif; font-size: 18px; color: #000000; margin-bottom: 15px; border-bottom: 1px solid #000000; padding-bottom: 10px;">Create Task</h3>
+                    <div id="create-customer-task-container"></div>
+                </div>
                 <div id="customer-list-section" class="settings-section hidden">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #000000; padding-bottom: 10px;">
                         <h3 style="font-family: Arial, sans-serif; font-size: 18px; color: #000000; margin: 0;">Customers</h3>
@@ -1542,7 +1547,7 @@
             <div id="task-content" class="hidden">
                 <div id="task-display-container"></div>
             </div>
-            <div id="task-list-content" {% if user_level == '1' %}class=""{% else %}class="hidden"{% endif %}>
+            <div id="task-list-content" {% if user_level == '1' or user_level == '3' %}class=""{% else %}class="hidden"{% endif %}>
                 <div id="task-list-container"></div>
             </div>
             <div id="dropdown-list-content" class="hidden">
@@ -2082,6 +2087,13 @@
                         <label for="task-deadline">Deadline</label>
                         <input type="date" id="task-deadline" style="width: 100%; padding: 8px; border: 1px solid #000000;">
                     </div>
+                    <div class="form-group">
+                        <label for="task-status">Status</label>
+                        <select id="task-status" style="width: 100%; padding: 8px; border: 1px solid #000000;">
+                            <option value="open" selected>open</option>
+                            <option value="close">close</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
                     <label for="task-extra-info">Extra Information</label>
@@ -2217,6 +2229,7 @@
         const taskAttachmentsDiv = document.getElementById('task-attachments');
         const taskCatalogueInput = document.getElementById('task-catalogue');
         const taskDeadlineInput = document.getElementById('task-deadline');
+        const taskStatusInput = document.getElementById('task-status');
         const taskNotesEditorDiv = document.getElementById('task-notes-editor');
         const editTaskModal = document.getElementById('edit-task-modal');
         const editTaskSequenceInput = document.getElementById('edit-task-sequence');
@@ -3156,6 +3169,23 @@
                 document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
                 const createCustomerBtn = document.querySelector('.menu-button[onclick="showCreateCustomer()"]');
                 if (createCustomerBtn) createCustomerBtn.classList.add('active');
+                // Initialize task form for level 1 users on page load
+                setTimeout(() => {
+                    const taskSection = document.getElementById('create-customer-task-section');
+                    if (taskSection) {
+                        taskSection.classList.remove('hidden');
+                    }
+                    const taskContainer = document.getElementById('create-customer-task-container');
+                    if (taskContainer) {
+                        if (!customerCache || customerCache.length === 0) {
+                            loadCustomers(false).then(() => {
+                                renderTaskForm(taskContainer);
+                            });
+                        } else {
+                            renderTaskForm(taskContainer);
+                        }
+                    }
+                }, 100);
             } else {
                 // Level 2/3: Show Receive Mail by default
                 document.getElementById('receive-mail-content').classList.remove('hidden');
@@ -3281,6 +3311,25 @@
             // Ensure attachment drag & drop is initialized
             setupCustomerAttachmentDragAndDrop();
             loadCustomers(true);
+            
+            // Load task form in Create Customer section for all users (all levels)
+            // Always ensure the task section is visible and form is rendered
+            const taskSection = document.getElementById('create-customer-task-section');
+            if (taskSection) {
+                taskSection.classList.remove('hidden');
+            }
+            
+            const taskContainer = document.getElementById('create-customer-task-container');
+            if (taskContainer) {
+                // Load customers if needed, then render task form
+                if (!customerCache || customerCache.length === 0) {
+                    loadCustomers(false).then(() => {
+                        renderTaskForm(taskContainer);
+                    });
+                } else {
+                    renderTaskForm(taskContainer);
+                }
+            }
         }
 
         function showTask() {
@@ -6251,7 +6300,40 @@
                 return;
             }
 
-            // Switch to Task view (right content). This will call loadTaskDisplay(),
+            const userLevel = '{{ user_level }}';
+            
+            // For level 1 users, open the task modal instead of switching to task view
+            if (userLevel === '1') {
+                // Open task modal for level 1 users
+                const taskModal = document.getElementById('task-modal');
+                if (taskModal) {
+                    taskModal.classList.remove('hidden');
+                    
+                    // Prefill the modal task form
+                    setTimeout(() => {
+                        const taskCustomerSelect = document.getElementById('task-customer-select');
+                        const taskCustomerValue = document.getElementById('task-customer-value');
+                        const taskEmailInput = document.getElementById('task-email');
+                        
+                        if (taskCustomerSelect) {
+                            taskCustomerSelect.value = customer.name || customer.company_name || customer.email_suffix || '';
+                        }
+                        if (taskCustomerValue) {
+                            taskCustomerValue.value = customer.email_suffix || '';
+                        }
+                        if (taskEmailInput) {
+                            const storedEmail = (customer.email_suffix || '').trim();
+                            taskEmailInput.value = storedEmail.includes('@') ? storedEmail : '';
+                        }
+                        
+                        // Setup autocomplete for customer field
+                        setupAutocomplete('task-customer-select', 'task-customer-dropdown', 'task-customer-value', 'task-email');
+                    }, 100);
+                }
+                return;
+            }
+
+            // For level 2+ users, switch to Task view (right content). This will call loadTaskDisplay(),
             // which renders the inline task form (including the rich text editor) if needed.
             showTask();
 
@@ -6350,6 +6432,11 @@
                 taskDeadlineInput.value = '';
             }
             
+            // Reset status to "open"
+            if (taskStatusInput) {
+                taskStatusInput.value = 'open';
+            }
+            
             // Clear template/notes editor
             setTimeout(() => {
                 if (taskNotesEditor) {
@@ -6391,29 +6478,77 @@
             taskModal.classList.remove('hidden');
         }
 
-        function closeTaskModal() {
-            taskModal.classList.add('hidden');
+        function resetTaskModalFields() {
+            // Clear sequence
+            if (taskSequenceInput) {
+                taskSequenceInput.value = '';
+            }
+            
+            // Clear customer select
+            if (taskCustomerSelect) {
+                taskCustomerSelect.value = '';
+            }
+            const taskCustomerValue = document.getElementById('task-customer-value');
+            if (taskCustomerValue) {
+                taskCustomerValue.value = '';
+            }
+            
+            // Clear email
+            if (taskEmailInput) {
+                taskEmailInput.value = '';
+            }
+            
+            // Clear catalogue/type
+            if (taskCatalogueInput) {
+                taskCatalogueInput.value = '';
+            }
+            
+            // Clear deadline
+            if (taskDeadlineInput) {
+                taskDeadlineInput.value = '';
+            }
+            
+            // Reset status to "open"
+            if (taskStatusInput) {
+                taskStatusInput.value = 'open';
+            }
+            
+            // Clear extra information textarea
+            const taskExtraInfo = document.getElementById('task-extra-info');
+            if (taskExtraInfo) {
+                taskExtraInfo.value = '';
+            }
+            
+            // Clear template/notes editor
+            if (taskNotesEditor) {
+                taskNotesEditor.setContents([]);
+            }
+            
             // Clear attachments display
             if (taskAttachmentsDiv) {
                 taskAttachmentsDiv.innerHTML = '';
             }
-            if (taskDeadlineInput) {
-                taskDeadlineInput.value = '';
-            }
-            // Hide email details section
-            const emailDetailsDiv = document.getElementById('task-email-details');
-            if (emailDetailsDiv) {
-                emailDetailsDiv.style.display = 'none';
-            }
             window.taskModalAttachments = [];
-            window.taskModalEmailIndex = null;
-            window.currentTaskEmail = null;
             
             // Clear file input
             const followUpFileInput = document.getElementById('follow-up-attachment-file-input');
             if (followUpFileInput) {
                 followUpFileInput.value = '';
             }
+            
+            // Hide email details section
+            const emailDetailsDiv = document.getElementById('task-email-details');
+            if (emailDetailsDiv) {
+                emailDetailsDiv.style.display = 'none';
+            }
+            
+            window.taskModalEmailIndex = null;
+            window.currentTaskEmail = null;
+        }
+
+        function closeTaskModal() {
+            taskModal.classList.add('hidden');
+            resetTaskModalFields();
         }
 
         function removeTaskAttachment(index) {
@@ -6619,6 +6754,7 @@
             const customer = taskCustomerSelect ? taskCustomerSelect.value : '';
             const email = taskEmailInput.value;
             const deadline = taskDeadlineInput ? (taskDeadlineInput.value || '').trim() : '';
+            const status = taskStatusInput ? (taskStatusInput.value || 'open') : 'open';
             
             // Validate required fields
             if (!catalogue || catalogue === '') {
@@ -6639,7 +6775,8 @@
                 catalogue: catalogue,
                 template: template,
                 attachments: window.taskModalAttachments || [],
-                deadline: deadline || null
+                deadline: deadline || null,
+                status: status
             };
             
             // Save to database
@@ -6656,6 +6793,8 @@
                     alert('Error saving task: ' + data.error);
                 } else {
                     alert('Task saved successfully!');
+                    // Reset all fields before closing
+                    resetTaskModalFields();
                     closeTaskModal();
                     // Refresh task list if it's displayed
                     if (document.getElementById('task-list-content') && !document.getElementById('task-list-content').classList.contains('hidden')) {
